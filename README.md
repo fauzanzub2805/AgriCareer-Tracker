@@ -7,9 +7,11 @@ Masalah utama yang ditemukan adalah fragmentasi informasi terkait lowongan, sert
 IPB Internship & Career Tracker dikembangkan sebagai platform manajemen terintegrasi yang berfungsi sebagai pusat kendali aktivitas pra-karier mahasiswa. Solusi yang ditawarkan mencakup:
 
 **Sentralisasi Data** 
+
 Penyediaan basis data lowongan magang dan program MBKM yang dapat dikurasi dan diakses secara mudah.
 
 **Pipeline Tracking** 
+
 Implementasi sistem pelacakan status lamaran yang intuitif (dari tahap Applied hingga Accepted/Rejected) untuk memberikan visibilitas penuh terhadap proses rekrutmen.
 
 **Logbook Digital**
