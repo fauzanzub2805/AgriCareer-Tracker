@@ -1,0 +1,32 @@
+[
+    {
+        "username": "mhs_arip",
+        "full_name": "Arief Abdul Rahman",
+        "email": "aar.arief@apps.ipb.ac.id",
+        "nim": "G6401231038",
+        "nip": null,
+        "role": "mahasiswa",
+        "password": "mahasiswa123",
+        "disabled": false
+    },
+    {
+        "username": "etmin_ludwik",
+        "full_name": "Ludwig Alven T. L. Tobing",
+        "email": "tobingludwig@apps.ipb.ac.id",
+        "nim": null,
+        "nip": "G6401231006",
+        "role": "admin",
+        "password": "admin123",
+        "disabled": false
+    },
+    {
+        "username": "dosen_ojan",
+        "full_name": "Muhammad Fauzan Zubaedi",
+        "email": "fauzanzubaedi@apps.ipb.ac.id",
+        "nim": null,
+        "nip": "G6401231129",
+        "role": "dosen",
+        "password": "dosen123",
+        "disabled": false
+    }
+]
