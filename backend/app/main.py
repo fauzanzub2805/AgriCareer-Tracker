@@ -91,6 +91,36 @@ class AuthController:
         )
 
 
+class LowonganController:
+    def __init__(self):
+        self.router = APIRouter(prefix="/lowongan", tags=["Lowongan"])
+        self.router.add_api_route("/", self.get_lowongan, methods=["GET"])
+
+    @staticmethod
+    def get_lowongan(user: dict = Depends(require_role("mahasiswa"))):
+        return user_repo.get_all_lowongan()
+
+
+class PengumumanController:
+    def __init__(self):
+        self.router = APIRouter(prefix="/pengumuman", tags=["Pengumuman"])
+        self.router.add_api_route("/", self.get_pengumuman, methods=["GET"])
+
+    @staticmethod
+    def get_pengumuman(user: dict = Depends(require_role("mahasiswa"))):
+        return user_repo.get_all_pengumuman()
+
+
+class LamaranController:
+    def __init__(self):
+        self.router = APIRouter(prefix="/lamaran", tags=["Lamaran"])
+        self.router.add_api_route("/", self.get_lamaran, methods=["GET"])
+
+    @staticmethod
+    def get_lamaran(user: dict = Depends(require_role("mahasiswa"))):
+        return user_repo.get_lamaran_by_mahasiswa(user["username"])
+
+
 class DashboardController:
     def __init__(self):
         self.router = APIRouter()
@@ -156,6 +186,9 @@ class ApplicationServer:
 
     def _register_routes(self):
         self.app.include_router(AuthController().router)
+        self.app.include_router(LowonganController().router)
+        self.app.include_router(LamaranController().router)
+        self.app.include_router(PengumumanController().router)
         self.app.include_router(DashboardController().router)
         self.app.include_router(HealthController().router)
 

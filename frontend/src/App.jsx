@@ -7,6 +7,7 @@ import Register from './pages/Register'
 // Mahasiswa
 import DashboardMahasiswa from './pages/DashboardMahasiswa'
 import LowonganMahasiswa from './pages/LowonganMahasiswa'
+import DetailLowonganMahasiswa from './pages/DetailLowonganMahasiswa'
 import LamaranMahasiswa from './pages/LamaranMahasiswa'
 import LogbookMahasiswa from './pages/LogbookMahasiswa'
 
@@ -47,6 +48,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={['mahasiswa']}>
                 <LowonganMahasiswa />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mahasiswa/lowongan/detail/:id"
+            element={
+              <ProtectedRoute roles={['mahasiswa']}>
+                <DetailLowonganMahasiswa />
               </ProtectedRoute>
             }
           />

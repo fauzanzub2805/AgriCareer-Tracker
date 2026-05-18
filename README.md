@@ -7,7 +7,7 @@ Aplikasi web untuk mengelola program magang mahasiswa, mencakup pendaftaran lowo
 | Layer | Teknologi |
 |-------|-----------|
 | Frontend | React 18 + Vite 5 |
-| Backend | FastAPI (Python 3.11+) |
+| Backend | FastAPI (Python 3.11-3.14) |
 | Auth | JWT Bearer Token (HS256, expire 60 menit) |
 
 ## Prasyarat
@@ -77,8 +77,8 @@ Lihat [progress.md](progress.md) untuk daftar fitur yang sudah selesai dan yang 
 
 | Peran | Username | Password | Redirect setelah login |
 |---|---|---|---|
-| Mahasiswa | `mahasiswa1` | `mahasiswa123` | `/mahasiswa/dashboard` |
-| Administrator | `admin1` | `admin123` | `/admin/dashboard` |
-| Dosen Pembimbing | `dosen1` | `dosen123` | `/dosen/dashboard` |
+| Mahasiswa | `mhs_arip` | `mahasiswa123` | `/mahasiswa/dashboard` |
+| Administrator | `etmin_ludwik` | `admin123` | `/admin/dashboard` |
+| Dosen Pembimbing | `dosen_ojan` | `dosen123` | `/dosen/dashboard` |
 
 ---
