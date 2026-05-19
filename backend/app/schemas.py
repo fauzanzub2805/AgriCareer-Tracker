@@ -31,3 +31,21 @@ class UserInfo(BaseModel):
     email: Optional[str] = None
     nim: Optional[str] = None
     nip: Optional[str] = None
+
+
+class LowonganCreate(BaseModel):
+    perusahaan: str
+    posisi: str
+    lokasi: str
+    deskripsi: str
+    tanggal_tutup: str
+    status_aktif: bool = True
+
+
+class LowonganUpdate(BaseModel):
+    perusahaan: str
+    posisi: str
+    lokasi: str
+    deskripsi: str
+    tanggal_tutup: str
+    status_aktif: bool

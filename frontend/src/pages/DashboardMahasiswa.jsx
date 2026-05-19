@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import ProfileMenu from '../components/ProfileMenu'
 
 export default function DashboardMahasiswa() {
   const { user, logout } = useAuth()
@@ -50,7 +51,7 @@ export default function DashboardMahasiswa() {
     <div className="font-['Poppins'] bg-[#1e2638] text-white min-h-screen flex flex-col antialiased">
       <nav className="bg-[#0f1626] border-b border-gray-800 px-6 py-4 sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
+          <Link to="/mahasiswa/dashboard" className="flex items-center gap-3 hover:opacity-90 transition">
             <div className="w-10 h-10 bg-blue-900 rounded-full border border-gray-600 flex items-center justify-center overflow-hidden">
               <img 
                 src="/Institut_Pertanian_Bogor_logo.png" 
@@ -61,7 +62,7 @@ export default function DashboardMahasiswa() {
             <h1 className="text-xl font-bold tracking-tight hidden sm:block">
               <span className="text-yellow-400">AgriCareer</span><span className="text-white">-Tracker</span>
             </h1>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-8">
             <ul className="hidden md:flex gap-8 font-medium text-sm">
@@ -77,9 +78,7 @@ export default function DashboardMahasiswa() {
                 </svg>
                 <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-[#0f1626] bg-red-500"></span>
               </button>
-              <div className="w-9 h-9 rounded-full bg-gray-600 overflow-hidden border border-gray-500 cursor-pointer" onClick={handleLogout} title="Klik untuk logout">
-                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-              </div>
+              <ProfileMenu user={user} onLogout={handleLogout} />
             </div>
           </div>
         </div>

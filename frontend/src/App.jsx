@@ -9,18 +9,16 @@ import DashboardMahasiswa from './pages/DashboardMahasiswa'
 import LowonganMahasiswa from './pages/LowonganMahasiswa'
 import DetailLowonganMahasiswa from './pages/DetailLowonganMahasiswa'
 import LamaranMahasiswa from './pages/LamaranMahasiswa'
-import LogbookMahasiswa from './pages/LogbookMahasiswa'
 
 // Admin
 import DashboardAdmin from './pages/DashboardAdmin'
 import UsersAdmin from './pages/UsersAdmin'
 import LowonganAdmin from './pages/LowonganAdmin'
-import TenggatAdmin from './pages/TenggatAdmin'
+
 
 // Dosen
 import DashboardDosen from './pages/DashboardDosen'
 import LamaranDosen from './pages/LamaranDosen'
-import LogbookDosen from './pages/LogbookDosen'
 
 import Unauthorized from './pages/Unauthorized'
 
@@ -67,14 +65,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/mahasiswa/logbook"
-            element={
-              <ProtectedRoute roles={['mahasiswa']}>
-                <LogbookMahasiswa />
-              </ProtectedRoute>
-            }
-          />
+
 
           {/* Admin */}
           <Route
@@ -101,14 +92,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/admin/tenggat"
-            element={
-              <ProtectedRoute roles={['admin']}>
-                <TenggatAdmin />
-              </ProtectedRoute>
-            }
-          />
+
 
           {/* Dosen */}
           <Route
@@ -124,14 +108,6 @@ export default function App() {
             element={
               <ProtectedRoute roles={['dosen']}>
                 <LamaranDosen />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/dosen/logbook"
-            element={
-              <ProtectedRoute roles={['dosen']}>
-                <LogbookDosen />
               </ProtectedRoute>
             }
           />

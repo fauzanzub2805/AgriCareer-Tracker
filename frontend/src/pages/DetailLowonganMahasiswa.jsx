@@ -2,6 +2,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useState, useEffect } from 'react'
 import api from '../services/api'
+import ProfileMenu from '../components/ProfileMenu'
 
 function formatTanggalDatabase(tanggal) {
   if (!tanggal) return 'Tanggal belum tersedia'
@@ -68,7 +69,7 @@ export default function DetailLowonganMahasiswa() {
     <div className="font-['Poppins'] bg-[#1e2638] text-white min-h-screen flex flex-col antialiased">
       <nav className="bg-[#0f1626] border-b border-gray-800 px-6 py-4 sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
+          <Link to="/mahasiswa/dashboard" className="flex items-center gap-3 hover:opacity-90 transition">
             <div className="w-10 h-10 bg-blue-900 rounded-full border border-gray-600 flex items-center justify-center overflow-hidden">
               <img 
                 src="https://upload.wikimedia.org/wikipedia/id/thumb/0/05/Makara_of_IPB_University.svg/1200px-Makara_of_IPB_University.svg.png" 
@@ -79,7 +80,7 @@ export default function DetailLowonganMahasiswa() {
             <h1 className="text-xl font-bold tracking-tight hidden sm:block">
               <span className="text-yellow-400">AgriCareer</span><span className="text-white">-Tracker</span>
             </h1>
-          </div>
+          </Link>
 
           <div className="flex items-center gap-8">
             <ul className="hidden md:flex gap-8 font-medium text-sm">
@@ -94,9 +95,7 @@ export default function DetailLowonganMahasiswa() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
               </button>
-              <div className="w-9 h-9 rounded-full bg-gray-600 overflow-hidden border border-gray-500 cursor-pointer" onClick={handleLogout} title="Klik untuk logout">
-                <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-              </div>
+              <ProfileMenu user={user} onLogout={handleLogout} />
             </div>
           </div>
         </div>

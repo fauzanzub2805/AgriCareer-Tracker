@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 import sqlite3
 
-from app.schemas import LoginRequest, TokenResponse, UserInfo, RegisterRequest
+from app.schemas import LoginRequest, TokenResponse, UserInfo, RegisterRequest, LowonganCreate, LowonganUpdate
 from app.models import get_user, user_repo, Database
 from app.auth import (
     authenticate_user,
@@ -40,7 +40,7 @@ class AuthController:
             "email": body.email,
             "nim": body.nim,
             "nip": body.nip,
-            "role": body.role,
+            "role": "mahasiswa",
             "hashed_password": Database.hash_password(body.password),
             "disabled": False
         }
@@ -95,10 +95,25 @@ class LowonganController:
     def __init__(self):
         self.router = APIRouter(prefix="/lowongan", tags=["Lowongan"])
         self.router.add_api_route("/", self.get_lowongan, methods=["GET"])
+        self.router.add_api_route("/", self.create_lowongan, methods=["POST"])
+        self.router.add_api_route("/{id}", self.update_lowongan, methods=["PUT"])
 
     @staticmethod
-    def get_lowongan(user: dict = Depends(require_role("mahasiswa"))):
+    def get_lowongan(user: dict = Depends(get_current_user)):
         return user_repo.get_all_lowongan()
+
+    @staticmethod
+    def create_lowongan(body: LowonganCreate, user: dict = Depends(require_role("admin"))):
+        new_id = user_repo.insert_lowongan(body.dict())
+        return {"message": "Lowongan berhasil ditambahkan.", "id": new_id}
+
+    @staticmethod
+    def update_lowongan(id: int, body: LowonganUpdate, user: dict = Depends(require_role("admin"))):
+        existing = user_repo.get_lowongan_by_id(id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Lowongan tidak ditemukan.")
+        user_repo.update_lowongan(id, body.dict())
+        return {"message": "Lowongan berhasil diperbarui."}
 
 
 class PengumumanController:
@@ -107,7 +122,7 @@ class PengumumanController:
         self.router.add_api_route("/", self.get_pengumuman, methods=["GET"])
 
     @staticmethod
-    def get_pengumuman(user: dict = Depends(require_role("mahasiswa"))):
+    def get_pengumuman(user: dict = Depends(get_current_user)):
         return user_repo.get_all_pengumuman()
 
 
@@ -119,6 +134,42 @@ class LamaranController:
     @staticmethod
     def get_lamaran(user: dict = Depends(require_role("mahasiswa"))):
         return user_repo.get_lamaran_by_mahasiswa(user["username"])
+
+
+class UsersController:
+    def __init__(self):
+        self.router = APIRouter(prefix="/users", tags=["Users"])
+        self.router.add_api_route("/", self.get_users, methods=["GET"])
+        self.router.add_api_route("/{username}/role", self.update_role, methods=["PUT"])
+
+    @staticmethod
+    def get_users(user: dict = Depends(require_role("admin"))):
+        return user_repo.get_all_users()
+
+    @staticmethod
+    def update_role(username: str, role_update: dict, user: dict = Depends(require_role("admin"))):
+        new_role = role_update.get("role")
+        if new_role not in ["dosen", "mahasiswa"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Peran tidak valid atau tidak diizinkan. Hanya dapat mengubah menjadi dosen atau mahasiswa."
+            )
+        
+        target_user = user_repo.get_user(username)
+        if not target_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pengguna tidak ditemukan."
+            )
+            
+        if target_user["role"] == "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tidak dapat mengubah peran admin."
+            )
+
+        user_repo.update_user_role(username, new_role)
+        return {"message": f"Peran {username} berhasil diperbarui menjadi {new_role}."}
 
 
 class DashboardController:
@@ -190,6 +241,7 @@ class ApplicationServer:
         self.app.include_router(LamaranController().router)
         self.app.include_router(PengumumanController().router)
         self.app.include_router(DashboardController().router)
+        self.app.include_router(UsersController().router)
         self.app.include_router(HealthController().router)
 
     def get_app(self) -> FastAPI:

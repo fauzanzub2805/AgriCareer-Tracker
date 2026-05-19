@@ -14,7 +14,7 @@
 .login-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3) 5%, #263C92 66.36%);
+  background: linear-gradient(90deg, rgba(149, 137, 137, 0.3) 5%, #172457 66.36%);
   backdrop-filter: blur(0.2px);
   -webkit-backdrop-filter: blur(0.2px);
   z-index: 1;

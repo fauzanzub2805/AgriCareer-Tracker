@@ -1,5 +1,6 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import ProfileMenu from './ProfileMenu'
 
 const NAV_MAHASISWA = [
   { to: '/mahasiswa/dashboard', label: 'Beranda' },
@@ -46,9 +47,9 @@ export default function AppLayout({ children, pageTitle }) {
   return (
     <div className="app-layout">
       <header className="topbar">
-        <div className="topbar-brand">
+        <Link to={user?.role ? `/${user.role}/dashboard` : '/'} className="topbar-brand cursor-pointer hover:opacity-90 transition" style={{ textDecoration: 'none' }}>
           <span className="text-yellow">AgriCareer-</span><span className="text-white">Tracker</span>
-        </div>
+        </Link>
 
         <nav className="topbar-nav">
           {navItems.map((item) => (
@@ -59,9 +60,7 @@ export default function AppLayout({ children, pageTitle }) {
         </nav>
 
         <div className="topbar-user">
-          <button className="avatar-btn" onClick={handleLogout} title="Klik untuk keluar">
-             <img src={avatarUrl} alt="User Avatar" />
-          </button>
+          <ProfileMenu user={user} onLogout={handleLogout} />
         </div>
       </header>
 

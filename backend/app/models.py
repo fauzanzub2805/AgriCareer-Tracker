@@ -86,6 +86,11 @@ class UserRepository:
                 return dict(row)
             return None
 
+    def get_all_users(self) -> list:
+        with self.db.get_connection() as conn:
+            cursor = conn.execute("SELECT username, full_name, email, nim, nip, role, disabled FROM users ORDER BY username")
+            return [dict(row) for row in cursor.fetchall()]
+
     def get_lowongan_by_id(self, lowongan_id: int) -> dict | None:
         with self.db.get_connection() as conn:
             cursor = conn.execute("SELECT * FROM lowongan WHERE id = ?", (lowongan_id,))
@@ -96,8 +101,32 @@ class UserRepository:
 
     def get_all_lowongan(self) -> list:
         with self.db.get_connection() as conn:
-            cursor = conn.execute("SELECT * FROM lowongan WHERE status_aktif = 1 ORDER BY id")
+            cursor = conn.execute("SELECT * FROM lowongan ORDER BY id DESC")
             return [dict(row) for row in cursor.fetchall()]
+
+    def insert_lowongan(self, data: dict) -> int:
+        with self.db.get_connection() as conn:
+            cursor = conn.execute(
+                '''
+                INSERT INTO lowongan (perusahaan, posisi, lokasi, deskripsi, tanggal_tutup, status_aktif)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ''',
+                (data["perusahaan"], data["posisi"], data["lokasi"], data["deskripsi"], data["tanggal_tutup"], data["status_aktif"])
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def update_lowongan(self, id: int, data: dict) -> None:
+        with self.db.get_connection() as conn:
+            conn.execute(
+                '''
+                UPDATE lowongan 
+                SET perusahaan=?, posisi=?, lokasi=?, deskripsi=?, tanggal_tutup=?, status_aktif=?
+                WHERE id=?
+                ''',
+                (data["perusahaan"], data["posisi"], data["lokasi"], data["deskripsi"], data["tanggal_tutup"], data["status_aktif"], id)
+            )
+            conn.commit()
 
     def get_all_pengumuman(self) -> list:
         with self.db.get_connection() as conn:
@@ -134,6 +163,14 @@ class UserRepository:
                     user_data["hashed_password"],
                     user_data.get("disabled", False)
                 )
+            )
+            conn.commit()
+
+    def update_user_role(self, username: str, new_role: str) -> None:
+        with self.db.get_connection() as conn:
+            conn.execute(
+                "UPDATE users SET role = ? WHERE username = ?",
+                (new_role, username)
             )
             conn.commit()
 
