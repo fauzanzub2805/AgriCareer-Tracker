@@ -6,6 +6,7 @@
 3. Muhammad Fauzan Zubaedi (G6401231129)
 
 Website: https://agricareer.site
+
 Bila website tidak aktif, maka hubungi salah satu kelompok untuk mengaksesnya. Self hosted
 
 Program Merdeka Belajar Kampus Merdeka (MBKM) dan magang mandiri telah menjadi bagian integral dari kurikulum pendidikan tinggi untuk meningkatkan relevansi lulusan dengan dunia industri. Namun, dalam pelaksanaannya, mahasiswa sering kali menghadapi kompleksitas administratif dalam mengelola berbagai tahapan rekrutmen dan pelaporan.
