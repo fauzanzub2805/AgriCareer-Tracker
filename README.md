@@ -1,13 +1,10 @@
-# AgriCareer-Tracker
+# [AgriCareer-Tracker](https://agricareer.site)
 ## Kelompok 14 Praktikum Analisis Disain Sistem P2
+
 **Anggota Kelompok**
 1. Arief Abdul Rahman (G6401231038)
 2. Ludwig Alven Tama L. T. (G6401231006)
 3. Muhammad Fauzan Zubaedi (G6401231129)
-
-Website: https://agricareer.site
-
-Bila website tidak aktif, maka hubungi salah satu kelompok untuk mengaksesnya. Self hosted
 
 Program Merdeka Belajar Kampus Merdeka (MBKM) dan magang mandiri telah menjadi bagian integral dari kurikulum pendidikan tinggi untuk meningkatkan relevansi lulusan dengan dunia industri. Namun, dalam pelaksanaannya, mahasiswa sering kali menghadapi kompleksitas administratif dalam mengelola berbagai tahapan rekrutmen dan pelaporan.
 Masalah utama yang ditemukan adalah fragmentasi informasi terkait lowongan, serta ketiadaan sistem terpusat untuk memantau status lamaran yang sedang berjalan. Selain itu, pencatatan aktivitas harian dan pemantauan tenggat waktu laporan sering kali dilakukan secara manual atau menggunakan media yang tidak terorganisir, sehingga meningkatkan risiko keterlambatan pelaporan yang berakibat pada hambatan proses konversi SKS (Satuan Kredit Semester). Oleh karena itu, diperlukan sebuah platform digital khusus untuk mengonsolidasikan seluruh aktivitas persiapan karier dan manajemen magang mahasiswa IPB.
@@ -21,7 +18,6 @@ Penyediaan basis data lowongan magang dan program MBKM yang dapat dikurasi dan d
 **Pipeline Tracking** 
 
 Implementasi sistem pelacakan status lamaran yang intuitif (dari tahap Applied hingga Accepted/Rejected) untuk memberikan visibilitas penuh terhadap proses rekrutmen.
-
 
 ## Stack
 
