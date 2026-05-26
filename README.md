@@ -1,14 +1,35 @@
-# AgriCareer
+# AgriCareer-Tracker
+## Kelompok 14 Praktikum Analisis Disain Sistem P2
+**Anggota Kelompok**
+1. Arief Abdul Rahman (G6401231038)
+2. Ludwig Alven Tama L. T. (G6401231006)
+3. Muhammad Fauzan Zubaedi (G6401231129)
 
-Aplikasi web untuk mengelola program magang mahasiswa, mencakup pendaftaran lowongan, tracking lamaran, logbook digital, dan validasi oleh dosen pembimbing.
+
+Program Merdeka Belajar Kampus Merdeka (MBKM) dan magang mandiri telah menjadi bagian integral dari kurikulum pendidikan tinggi untuk meningkatkan relevansi lulusan dengan dunia industri. Namun, dalam pelaksanaannya, mahasiswa sering kali menghadapi kompleksitas administratif dalam mengelola berbagai tahapan rekrutmen dan pelaporan.
+Masalah utama yang ditemukan adalah fragmentasi informasi terkait lowongan, serta ketiadaan sistem terpusat untuk memantau status lamaran yang sedang berjalan. Selain itu, pencatatan aktivitas harian dan pemantauan tenggat waktu laporan sering kali dilakukan secara manual atau menggunakan media yang tidak terorganisir, sehingga meningkatkan risiko keterlambatan pelaporan yang berakibat pada hambatan proses konversi SKS (Satuan Kredit Semester). Oleh karena itu, diperlukan sebuah platform digital khusus untuk mengonsolidasikan seluruh aktivitas persiapan karier dan manajemen magang mahasiswa IPB.
+
+IPB Internship & Career Tracker dikembangkan sebagai platform manajemen terintegrasi yang berfungsi sebagai pusat kendali aktivitas pra-karier mahasiswa. Solusi yang ditawarkan mencakup:
+
+**Sentralisasi Data** 
+
+Penyediaan basis data lowongan magang dan program MBKM yang dapat dikurasi dan diakses secara mudah.
+
+**Pipeline Tracking** 
+
+Implementasi sistem pelacakan status lamaran yang intuitif (dari tahap Applied hingga Accepted/Rejected) untuk memberikan visibilitas penuh terhadap proses rekrutmen.
+
 
 ## Stack
 
 | Layer | Teknologi |
 |-------|-----------|
-| Frontend | React 18 + Vite 5 |
-| Backend | FastAPI (Python 3.11-3.14) |
-| Auth | JWT Bearer Token (HS256, expire 60 menit) |
+| Frontend | React 18 + Vite 5 + Tailwind CSS 4 |
+| Backend | FastAPI (Python 3.11+) |
+| Database | SQLite (dengan Python `sqlite3`) |
+| Caching | Redis |
+| Storage | Local S3 Mimic Storage |
+| Auth | JWT Bearer Token (HS256) |
 
 ## Prasyarat
 
@@ -40,38 +61,33 @@ npm run dev
 
 App: http://localhost:5173
 
-## Akun Demo
-
-| Role | Username | Password |
-|------|----------|----------|
-| Mahasiswa | mahasiswa | password |
-| Admin | admin | password |
-| Dosen | dosen | password |
-
 ## Struktur Proyek
 
-```
-ADS/
+```text
+AgriCareer-Tracker/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py       # FastAPI app + routes
-│   │   ├── auth.py       # JWT logic
-│   │   ├── models.py     # In-memory user store
-│   │   └── schemas.py    # Pydantic schemas
+│   │   ├── main.py       # FastAPI app + routes & controllers
+│   │   ├── auth.py       # JWT logic & dependencies
+│   │   ├── models.py     # Database queries & data access
+│   │   ├── schemas.py    # Pydantic validation schemas
+│   │   ├── storage.py    # Local S3 storage implementation
+│   │   ├── cache.py      # Redis caching logic
+│   │   └── mailer.py     # Email notification service
+│   ├── adsdb/            # SQLite Database
+│   ├── local_s3/         # Local file storage
 │   └── requirements.txt
 └── frontend/
     └── src/
-        ├── context/AuthContext.jsx     # Auth state
-        ├── components/
-        │   ├── AppLayout.jsx           # Sidebar + topbar
-        │   └── ProtectedRoute.jsx      # Role-based guard
-        ├── pages/                      # Dashboard per role + Login
-        └── services/api.js             # Axios + interceptors
+        ├── components/                 # Reusable UI components
+        ├── context/AuthContext.jsx     # Global authentication state
+        ├── layouts/                    # App layouts (Sidebar, Topbar)
+        ├── pages/                      # Role-based pages (Login, Dashboard, dll)
+        ├── services/api.js             # Axios instance & interceptors
+        ├── utils/                      # Helper functions
+        ├── App.jsx                     # Router configuration
+        └── index.css                   # Global styles & Tailwind
 ```
-
-## Status
-
-Lihat [progress.md](progress.md) untuk daftar fitur yang sudah selesai dan yang masih dalam pengerjaan.
 
 ## Akun Demo
 
