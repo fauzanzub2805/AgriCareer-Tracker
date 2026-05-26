@@ -18,7 +18,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 && !err.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
       window.location.href = '/login'
@@ -26,5 +26,21 @@ api.interceptors.response.use(
     return Promise.reject(err)
   }
 )
+
+export const openSecureFile = async (url) => {
+  try {
+    const token = localStorage.getItem('access_token')
+    const res = await axios.get(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      responseType: 'blob'
+    })
+    const objectUrl = URL.createObjectURL(res.data)
+    window.open(objectUrl, '_blank')
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10000)
+  } catch (err) {
+    console.error('Gagal membuka file:', err)
+    alert('Gagal membuka file. Anda mungkin tidak memiliki akses.')
+  }
+}
 
 export default api

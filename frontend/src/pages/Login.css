@@ -9,14 +9,13 @@
   padding: 0 4%;
   overflow: hidden;
   font-family: 'Poppins', sans-serif;
+  contain: layout style;
 }
 
 .login-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, rgba(149, 137, 137, 0.3) 5%, #172457 66.36%);
-  backdrop-filter: blur(0.2px);
-  -webkit-backdrop-filter: blur(0.2px);
   z-index: 1;
   pointer-events: none;
 }
@@ -61,20 +60,19 @@
 }
 
 .login-card {
-  background: rgba(30, 41, 59, 0.65);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(30, 41, 59, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 24px;
   padding: 2rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.05) inset;
+  box-shadow: 0 16px 32px -8px rgba(0, 0, 0, 0.5);
   color: #F8FAFC;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  transition: transform 0.3s ease;
 }
 
 .login-card:hover {
-  box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 0.1px rgba(255, 255, 255, 0.1) inset;
-  transform: translateY(-1px);
+  /* transform: translateY(-1px); */
 }
 
 .login-card-header {
@@ -216,6 +214,7 @@
 }
 
 .checkmark {
+  position: relative;
   height: 20px;
   width: 20px;
   background-color: rgba(15, 23, 42, 0.5);
@@ -241,13 +240,13 @@
   content: "";
   position: absolute;
   display: none;
-  left: 6px;
-  top: 2px;
+  left: 50%;
+  top: 45%;
   width: 5px;
   height: 10px;
   border: solid white;
   border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 
 .checkbox-container input:checked~.checkmark:after {
@@ -388,7 +387,20 @@
   align-items: center;
   font-size: 0.85rem;
   color: #94A3B8;
-  padding: 0.25rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.demo-cred-row:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #FFFFFF;
+}
+
+.demo-cred-row:active {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .demo-cred-row code {
@@ -398,6 +410,12 @@
   color: #F8FAFC;
   font-family: monospace;
   font-size: 0.8rem;
+  transition: all 0.2s ease;
+}
+
+.demo-cred-row:hover code {
+  background: #FBBF24;
+  color: #0F172A;
 }
 
 .spinner {
@@ -446,6 +464,8 @@
 
   .login-overlay {
     background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
   .login-header-title {
@@ -455,6 +475,25 @@
 
   .login-card {
     padding: 2rem;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(30, 41, 59, 0.92);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    will-change: auto;
+  }
+
+  .login-card:hover {
+    transform: none;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .login-content {
+    animation: none;
+    opacity: 1;
+  }
+
+  .login-submit-btn:hover:not(:disabled) {
+    transform: none;
   }
 
   .website-info-container {
@@ -473,5 +512,26 @@
     font-size: 1.75rem;
     letter-spacing: -0.5px;
     margin-bottom: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .demo-cred-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+  }
+  
+  .demo-cred-row span {
+    font-weight: 600;
+    text-align: left;
+  }
+  
+  .demo-cred-row code {
+    display: block;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
   }
 }

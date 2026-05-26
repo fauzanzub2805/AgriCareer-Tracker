@@ -44,10 +44,8 @@ export default function Register() {
     try {
       const response = await api.post('/auth/register', submitData)
       if (response.data) {
-        setSuccessMsg('Registrasi berhasil! Mengalihkan ke login...')
-        setTimeout(() => {
-          navigate('/login', { replace: true })
-        }, 1500)
+        setSuccessMsg(response.data.message || 'Registrasi berhasil! Silakan cek inbox atau folder spam email Anda.')
+        // Biarkan user membaca pesan lebih lama sebelum auto-redirect, atau biar mereka klik link SignIn sendiri.
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Gagal mendaftar. Silakan coba lagi.')
@@ -79,131 +77,133 @@ export default function Register() {
               {error}
             </div>
           )}
-          {successMsg && (
-            <div className="alert-error" style={{ background: '#4CAF50' }}>
-              <i className="fas fa-check-circle" />
-              {successMsg}
+
+          {successMsg ? (
+            <div className="text-center py-6">
+              <div className="text-green-500 text-6xl mb-4">
+                <i className="fas fa-envelope-open-text" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-4">Registrasi Berhasil!</h3>
+              <p className="text-gray-300 mb-6 leading-relaxed">
+                {successMsg}
+              </p>
+              <button
+                className="login-submit-btn"
+                onClick={() => navigate('/login')}
+              >
+                Kembali ke Login
+              </button>
             </div>
+          ) : (
+            <form onSubmit={handleSubmit} noValidate>
+              <div className="form-group">
+                <label htmlFor="username">Username</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-user input-icon" />
+                  <input
+                    id="username"
+                    className="form-control"
+                    type="text"
+                    name="username"
+                    placeholder="Enter your username"
+                    value={form.username}
+                    onChange={handleChange}
+                    autoComplete="username"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="full_name">Full Name</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-id-badge input-icon" />
+                  <input
+                    id="full_name"
+                    className="form-control"
+                    type="text"
+                    name="full_name"
+                    placeholder="Enter your full name"
+                    value={form.full_name}
+                    onChange={handleChange}
+                    autoComplete="name"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email">Email address</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-envelope input-icon" />
+                  <input
+                    id="email"
+                    className="form-control"
+                    type="email"
+                    name="email"
+                    placeholder="Enter your email"
+                    value={form.email}
+                    onChange={handleChange}
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-lock input-icon" />
+                  <input
+                    id="password"
+                    className="form-control"
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    placeholder="Enter your Password"
+                    value={form.password}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="toggle-password"
+                    onClick={() => setShowPassword((v) => !v)}
+                    tabIndex={-1}
+                  >
+                    <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password_confirmation">Confirm Password</label>
+                <div className="input-wrapper">
+                  <i className="fas fa-lock input-icon" />
+                  <input
+                    id="password_confirmation"
+                    className="form-control"
+                    type="password"
+                    name="password_confirmation"
+                    placeholder="Confirm your Password"
+                    value={form.password_confirmation}
+                    onChange={handleChange}
+                    autoComplete="new-password"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="login-submit-btn"
+                disabled={loading}
+                style={{ marginTop: '2rem' }}
+              >
+                {loading ? <span className="spinner" /> : 'Sign Up'}
+              </button>
+
+              <div className="signup-row">
+                Already have an account? <Link to="/login">Sign In</Link>
+              </div>
+            </form>
           )}
-
-          <form onSubmit={handleSubmit} noValidate>
-            <div className="form-group">
-              <label htmlFor="username">Username</label>
-              <div className="input-wrapper">
-                <i className="fas fa-user input-icon" />
-                <input
-                  id="username"
-                  className="form-control"
-                  type="text"
-                  name="username"
-                  placeholder="Enter your username"
-                  value={form.username}
-                  onChange={handleChange}
-                  autoComplete="username"
-                  autoFocus
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="full_name">Full Name</label>
-              <div className="input-wrapper">
-                <i className="fas fa-id-badge input-icon" />
-                <input
-                  id="full_name"
-                  className="form-control"
-                  type="text"
-                  name="full_name"
-                  placeholder="Enter your full name"
-                  value={form.full_name}
-                  onChange={handleChange}
-                  autoComplete="name"
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="email">Email address</label>
-              <div className="input-wrapper">
-                <i className="fas fa-envelope input-icon" />
-                <input
-                  id="email"
-                  className="form-control"
-                  type="email"
-                  name="email"
-                  placeholder="Enter your email"
-                  value={form.email}
-                  onChange={handleChange}
-                  autoComplete="email"
-                />
-              </div>
-            </div>
-
-
-            <div className="form-group">
-              <label htmlFor="password">Password</label>
-              <div className="input-wrapper">
-                <i className="fas fa-lock input-icon" />
-                <input
-                  id="password"
-                  className="form-control"
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  placeholder="Enter your Password"
-                  value={form.password}
-                  onChange={handleChange}
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowPassword((v) => !v)}
-                  tabIndex={-1}
-                >
-                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
-                </button>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="password_confirmation">Confirm Password</label>
-              <div className="input-wrapper">
-                <i className="fas fa-lock input-icon" />
-                <input
-                  id="password_confirmation"
-                  className="form-control"
-                  // type={showPasswordConfirmation ? 'text' : 'password'}
-                  type={"password"}
-                  name="password_confirmation"
-                  placeholder="Confirm your Password"
-                  value={form.password_confirmation}
-                  onChange={handleChange}
-                  autoComplete="new-password"
-                />
-                {/* <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowPasswordConfirmation((v) => !v)}
-                  tabIndex={-1}
-                >
-                  <i className={`fas ${showPasswordConfirmation ? 'fa-eye-slash' : 'fa-eye'}`} />
-                </button> */}
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="login-submit-btn"
-              disabled={loading || successMsg !== ''}
-              style={{ marginTop: '2rem' }}
-            >
-              {loading ? <span className="spinner" /> : 'Sign Up'}
-            </button>
-
-            <div className="signup-row">
-              Already have an account? <Link to="/login">Sign In</Link>
-            </div>
-          </form>
         </div>
       </div>
     </div>

@@ -26,13 +26,18 @@ export default function Login() {
     setError('')
   }
 
+  function handleFillDemo(username, password) {
+    setForm({ username, password })
+    setError('')
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.username.trim() || !form.password) {
       setError('Username dan password tidak boleh kosong.')
       return
     }
-    const result = await login(form.username.trim(), form.password)
+    const result = await login(form.username.trim(), form.password, rememberMe)
     if (result.success) {
       const destination = from || ROLE_REDIRECT[result.role] || '/'
       navigate(destination, { replace: true })
@@ -119,7 +124,7 @@ export default function Login() {
                 <span className="checkmark"></span>
                 <span className="remember-text">Remember Me</span>
               </label>
-              <a href="#" className="forgot-link">Forgot Password?</a>
+              <Link to="/forgot-password" className="forgot-link">Forgot Password?</Link>
             </div>
 
             <button
@@ -136,17 +141,29 @@ export default function Login() {
           </form>
 
           <div className="demo-box">
-            <p>Demo Akun</p>
+            <p>Demo Akun (Tap untuk mengisi otomatis)</p>
             <div className="demo-credentials">
-              <div className="demo-cred-row">
+              <div 
+                className="demo-cred-row"
+                onClick={() => handleFillDemo('mhs_arip', 'mahasiswa123')}
+                title="Tap untuk mengisi otomatis akun Mahasiswa"
+              >
                 <span>Mahasiswa</span>
                 <code>mhs_arip / mahasiswa123</code>
               </div>
-              <div className="demo-cred-row">
+              <div 
+                className="demo-cred-row"
+                onClick={() => handleFillDemo('etmin_ludwik', 'admin123')}
+                title="Tap untuk mengisi otomatis akun Administrator"
+              >
                 <span>Administrator</span>
                 <code>etmin_ludwik / admin123</code>
               </div>
-              <div className="demo-cred-row">
+              <div 
+                className="demo-cred-row"
+                onClick={() => handleFillDemo('dosen_ojan', 'dosen123')}
+                title="Tap untuk mengisi otomatis akun Dosen"
+              >
                 <span>Dosen</span>
                 <code>dosen_ojan / dosen123</code>
               </div>

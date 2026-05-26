@@ -1,11 +1,4 @@
-backend/sql_dump
-*.sql
-.adsenv
-frontend/node_modules
-node_modules
-__pycache__
-*.pyc
-.vscode
-Instructions.md
-progress.md
-README-personal.md
+__pycache__/
+node_modules/
+.venv/
+dist/

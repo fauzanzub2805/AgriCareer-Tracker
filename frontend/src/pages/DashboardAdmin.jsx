@@ -1,103 +1,63 @@
 import { useAuth } from '../context/AuthContext'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import api from '../services/api'
-import ProfileMenu from '../components/ProfileMenu'
+import AuthImage from '../components/AuthImage'
 
 export default function DashboardAdmin() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-
+  const { user } = useAuth()
+  
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [stats, setStats] = useState({ users: 0, lowongan: 0, lamaran: 0, pengumuman: 0 })
+  const [stats, setStats] = useState({ users: 0, lowongan: 0, lowonganAktif: 0, pengumuman: 0 })
   const [recentLowongan, setRecentLowongan] = useState([])
   const [pengumumanList, setPengumumanList] = useState([])
+  const [profile, setProfile] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     
-    const fetchData = async () => {
-      try {
-        const [resUsers, resLowongan, resPengumuman] = await Promise.all([
-          api.get('/users/'),
-          api.get('/lowongan/'),
-          api.get('/pengumuman/')
-        ])
-        
-        setStats({
-          users: resUsers.data.length,
-          lowongan: resLowongan.data.length,
-          lamaran: 0, // Mock for now until we have an endpoint for all lamaran across the system
-          pengumuman: resPengumuman.data.length
-        })
-        
-        // Take the last 3 lowongan for "Aktivitas Lowongan Terakhir"
-        setRecentLowongan(resLowongan.data.slice(-3).reverse())
-        setPengumumanList(resPengumuman.data)
-      } catch (err) {
-        console.error("Gagal mengambil data dashboard admin:", err)
-      }
-    }
-    fetchData()
+    api.get('/profile/me').then(res => {
+      setProfile(res.data)
+    }).catch(err => console.error("Gagal load profile:", err))
+    
+    api.get('/users/').then(res => {
+      setStats(prev => ({ ...prev, users: res.data.length }))
+    }).catch(err => console.error(err))
+
+    api.get('/lowongan/').then(res => {
+      setStats(prev => ({
+        ...prev,
+        lowongan: res.data.length,
+        lowonganAktif: res.data.filter(l => l.status_aktif === 1 || l.status_aktif === true).length
+      }))
+      setRecentLowongan(res.data.slice(-3).reverse())
+    }).catch(err => console.error(err))
+
+    api.get('/pengumuman/').then(res => {
+      setStats(prev => ({ ...prev, pengumuman: res.data.length }))
+      setPengumumanList(res.data)
+    }).catch(err => console.error(err))
     
     return () => clearInterval(timer)
   }, [])
 
-  function handleLogout() {
-    logout()
-    navigate('/login', { replace: true })
-  }
-
-  const avatarUrl = user?.full_name 
+  const fallbackAvatarUrl = user?.full_name 
     ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2070&auto=format&fit=crop'
+    : `https://ui-avatars.com/api/?name=Admin&background=random`   
+    
+  const avatarUrl = profile?.foto_profile || user?.foto_profile || fallbackAvatarUrl
 
   return (
-    <div className="font-['Poppins'] bg-[#1e2638] text-white min-h-screen flex flex-col antialiased">
-      <nav className="bg-[#0f1626] border-b border-gray-800 px-6 py-4 sticky top-0 z-50 shadow-md">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <Link to="/admin/dashboard" className="flex items-center gap-3 hover:opacity-90 transition">
-            <div className="w-10 h-10 bg-blue-900 rounded-full border border-gray-600 flex items-center justify-center overflow-hidden">
-              <img 
-                src="/Institut_Pertanian_Bogor_logo.png" 
-                alt="Logo IPB" 
-                className="w-[100%] h-[100%] object-contain"
-              />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight hidden sm:block">
-              <span className="text-yellow-400">AgriCareer</span><span className="text-white">-Tracker</span>
-            </h1>
-          </Link>
-
-          <div className="flex items-center gap-8">
-            <ul className="hidden md:flex gap-8 font-medium text-sm">
-              <li><Link to="/admin/dashboard" className="text-yellow-400">Beranda</Link></li>
-              <li><Link to="/admin/users" className="text-gray-300 hover:text-white transition">Kelola Pengguna</Link></li>
-              <li><Link to="/admin/lowongan" className="text-gray-300 hover:text-white transition">Lowongan Magang</Link></li>
-            </ul>
-
-            <div className="flex items-center gap-5">
-              <button className="text-gray-400 hover:text-white transition relative">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
-                <span className="absolute top-0 right-0 block h-2 w-2 rounded-full ring-2 ring-[#0f1626] bg-red-500"></span>
-              </button>
-              <ProfileMenu user={user} onLogout={handleLogout} />
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <main className="flex-grow max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 space-y-6">
+    <main className="flex-grow max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 space-y-6">
         
-        <div className="bg-[#0f1626] rounded-xl p-5 sm:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center border border-gray-800 shadow-lg gap-4">
+        {/* Desktop View: Combined Welcome & Clock */}
+        <div className="hidden sm:flex bg-[#0f1626] rounded-xl p-6 justify-between items-center border border-gray-800 shadow-lg">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-gray-700 overflow-hidden border-2 border-gray-600">
-              <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+            <div className="w-14 h-14 rounded-full bg-gray-700 overflow-hidden border-2 border-gray-600 flex-shrink-0 aspect-square">
+              <AuthImage src={avatarUrl} fallbackSrc={fallbackAvatarUrl} alt="Profile" className="w-full h-full object-cover aspect-square" />
             </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-semibold text-white">Administrator Panel</h2>
+              <h2 className="text-xl font-semibold text-white">Administrator Panel</h2>
               <p className="text-sm text-gray-400">Selamat datang kembali, {user?.full_name}</p>
             </div>
           </div>
@@ -111,6 +71,31 @@ export default function DashboardAdmin() {
           </div>
         </div>
 
+        {/* Mobile View: Welcome & Clock Separated */}
+        <div className="sm:hidden space-y-4">
+          {/* Welcome Card */}
+          <div className="bg-[#0f1626] rounded-xl p-5 flex items-center gap-4 border border-gray-800 shadow-lg">
+            <div className="w-14 h-14 rounded-full bg-gray-700 overflow-hidden border-2 border-gray-600 flex-shrink-0 aspect-square">
+              <AuthImage src={avatarUrl} fallbackSrc={fallbackAvatarUrl} alt="Profile" className="w-full h-full object-cover aspect-square" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-white">Selamat Datang,</h2>
+              <p className="text-sm text-gray-300 truncate">{user?.full_name}</p>
+              <p className="text-xs text-gray-500">Administrator</p>
+            </div>
+          </div>
+          
+          {/* Clock Card */}
+          <div className="bg-[#0f1626] rounded-xl p-5 border border-gray-800 shadow-lg flex flex-col items-center justify-center text-center">
+            <p className="text-sm font-medium text-gray-300">
+              {currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
+            <p className="text-3xl font-bold text-yellow-400 mt-1">
+              {currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg">
             <p className="text-xs sm:text-sm text-gray-400 mb-2">Total Pengguna</p>
@@ -118,11 +103,11 @@ export default function DashboardAdmin() {
           </div>
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg">
             <p className="text-xs sm:text-sm text-gray-400 mb-2">Lowongan Aktif</p>
-            <p className="text-3xl font-bold text-yellow-400">{stats.lowongan}</p>
+            <p className="text-3xl font-bold text-yellow-400">{stats.lowonganAktif}</p>
           </div>
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg">
-            <p className="text-xs sm:text-sm text-gray-400 mb-2">Lamaran Masuk</p>
-            <p className="text-3xl font-bold text-yellow-400">{stats.lamaran}</p>
+            <p className="text-xs sm:text-sm text-gray-400 mb-2">Total Lowongan</p>
+            <p className="text-3xl font-bold text-yellow-400">{stats.lowongan}</p>
           </div>
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-gray-500 rounded-bl-full opacity-10 z-0"></div>
@@ -150,7 +135,7 @@ export default function DashboardAdmin() {
                 )}
               </div>
               <div className="mt-4 text-right">
-                <button className="text-xs font-medium text-yellow-400 hover:text-yellow-300">Tambah Pengumuman Baru &rarr;</button>
+                <Link to="/admin/pengumuman" className="text-xs font-medium text-yellow-400 hover:text-yellow-300">Tambah Pengumuman Baru &rarr;</Link>
               </div>
             </div>
 
@@ -209,6 +194,5 @@ export default function DashboardAdmin() {
             </div>
         </div>
       </main>
-    </div>
   )
 }

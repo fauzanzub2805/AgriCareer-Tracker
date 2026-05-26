@@ -12,10 +12,10 @@ load_dotenv()
 
 
 class AuthService:
-    SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key")
-    ALGORITHM = os.getenv("ALGORITHM", "HS256")
+    _SECRET_KEY = os.getenv("SECRET_KEY", "fallback_secret_key")
+    _ALGORITHM = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    bearer_scheme = HTTPBearer()
+    _bearer_scheme = HTTPBearer()
 
     @staticmethod
     def authenticate_user(username: str, password: str):
@@ -35,12 +35,12 @@ class AuthService:
             expires_delta or timedelta(minutes=cls.ACCESS_TOKEN_EXPIRE_MINUTES)
         )
         to_encode.update({"exp": expire})
-        return jwt.encode(to_encode, cls.SECRET_KEY, algorithm=cls.ALGORITHM)
+        return jwt.encode(to_encode, cls._SECRET_KEY, algorithm=cls._ALGORITHM)
 
     @classmethod
-    def decode_token(cls, token: str) -> dict:
+    def _decode_token(cls, token: str) -> dict:
         try:
-            return jwt.decode(token, cls.SECRET_KEY, algorithms=[cls.ALGORITHM])
+            return jwt.decode(token, cls._SECRET_KEY, algorithms=[cls._ALGORITHM])
         except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -51,9 +51,9 @@ class AuthService:
     @classmethod
     def get_current_user(
         cls,
-        credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+        credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     ):
-        payload = cls.decode_token(credentials.credentials)
+        payload = cls._decode_token(credentials.credentials)
         username: str = payload.get("sub")
         if not username:
             raise HTTPException(
