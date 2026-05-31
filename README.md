@@ -13,7 +13,7 @@ IPB Internship & Career Tracker dikembangkan sebagai platform manajemen terinteg
 
 **Sentralisasi Data** 
 
-Penyediaan basis data lowongan magang dan program MBKM yang dapat dikurasi dan diakses secara mudah.
+Penyediaan basis data lowongan magang yang dapat dikurasi dan diakses secara mudah.
 
 **Pipeline Tracking** 
 
