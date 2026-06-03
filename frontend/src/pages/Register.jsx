@@ -55,7 +55,7 @@ export default function Register() {
   }
 
   return (
-    <div className="login-page">
+    <main className="login-page">
       <div className="login-overlay" />
       <div className="login-content">
         <h1 className="login-header-title">
@@ -206,6 +206,6 @@ export default function Register() {
           )}
         </div>
       </div>
-    </div>
+    </main>
   )
 }

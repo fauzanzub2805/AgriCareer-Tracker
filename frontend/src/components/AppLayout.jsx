@@ -72,7 +72,7 @@ export default function AppLayout({ children, pageTitle }) {
             <h2>Selamat Datang, <strong>{user?.full_name}</strong> {identifier && `- ${identifier}`}</h2>
           )}
         </div>
-        
+
         <div className="glass-container">
           {children}
         </div>

@@ -11,6 +11,23 @@ export default function MahasiswaLayout() {
   const location = useLocation()
   const navigate = useNavigate()
 
+  useEffect(() => {
+    // Preload JS chunks di background agar transisi halaman terasa instan
+    const preloadPages = () => {
+      import('../pages/LowonganMahasiswa')
+      import('../pages/LamaranMahasiswa')
+      import('../pages/Chat')
+      import('../pages/ProfileMahasiswa')
+      import('../pages/ApplyMagang')
+    }
+    
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(preloadPages)
+    } else {
+      setTimeout(preloadPages, 2000)
+    }
+  }, [])
+
   // Removed interval, unread count is managed globally in AuthContext
 
   function handleLogout() {
@@ -32,7 +49,7 @@ export default function MahasiswaLayout() {
           <Link to="/mahasiswa/dashboard" className="flex items-center gap-3 hover:opacity-90 transition">
             <div className="w-10 h-10 bg-blue-900 rounded-full border border-gray-600 flex items-center justify-center overflow-hidden">
               <img 
-                src="/Institut_Pertanian_Bogor_logo.png" 
+                src="/Institut_Pertanian_Bogor_logo.webp" 
                 alt="Logo IPB" 
                 className="w-[100%] h-[100%] object-contain"
               />
@@ -80,13 +97,15 @@ export default function MahasiswaLayout() {
         </div>
       </nav>
 
-      <Suspense fallback={
-        <div className="flex-1 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-gray-600 border-t-yellow-400 rounded-full animate-spin"></div>
-        </div>
-      }>
-        <Outlet />
-      </Suspense>
+      <main className="flex-1 flex flex-col">
+        <Suspense fallback={
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-8 h-8 border-4 border-gray-600 border-t-yellow-400 rounded-full animate-spin"></div>
+          </div>
+        }>
+          <Outlet />
+        </Suspense>
+      </main>
 
       {/* Mobile Bottom Navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f1626] border-t border-gray-800 md:hidden px-4 py-2 shadow-lg">

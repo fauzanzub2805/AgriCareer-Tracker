@@ -24,13 +24,13 @@ export default function DashboardAdmin() {
       setStats(prev => ({ ...prev, users: res.data.length }))
     }).catch(err => console.error(err))
 
-    api.get('/lowongan/').then(res => {
+    api.get('/lowongan/stats/summary').then(res => {
       setStats(prev => ({
         ...prev,
-        lowongan: res.data.length,
-        lowonganAktif: res.data.filter(l => l.status_aktif === 1 || l.status_aktif === true).length
+        lowongan: res.data.total,
+        lowonganAktif: res.data.aktif
       }))
-      setRecentLowongan(res.data.slice(-3).reverse())
+      setRecentLowongan(res.data.recent)
     }).catch(err => console.error(err))
 
     api.get('/pengumuman/').then(res => {
@@ -41,9 +41,7 @@ export default function DashboardAdmin() {
     return () => clearInterval(timer)
   }, [])
 
-  const fallbackAvatarUrl = user?.full_name 
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : `https://ui-avatars.com/api/?name=Admin&background=random`   
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
     
   const avatarUrl = profile?.foto_profile || user?.foto_profile || fallbackAvatarUrl
 
@@ -154,7 +152,6 @@ export default function DashboardAdmin() {
                     <div className="flex-grow">
                       <div className="flex justify-between">
                         <h4 className="text-white font-medium text-base">{l.perusahaan} membuka lowongan</h4>
-                        <span className="text-xs text-gray-500">Baru Saja</span>
                       </div>
                       <p className="text-xs text-gray-400 mt-1 mb-3">{l.posisi} - {l.lokasi}</p>
                     </div>

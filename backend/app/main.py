@@ -1,14 +1,18 @@
-from fastapi import FastAPI, HTTPException, Depends, status, APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Depends, status, APIRouter, UploadFile, File, WebSocket, WebSocketDisconnect, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from datetime import timedelta
 import os
-import shutil
 from dotenv import load_dotenv
 import sqlite3
 import uuid
+import asyncio
+import redis.asyncio as redis
+import json
+from contextlib import asynccontextmanager
+from fastapi.concurrency import run_in_threadpool
 
 from app.schemas import LoginRequest, TokenResponse, UserInfo, RegisterRequest, LowonganCreate, LowonganUpdate, LamaranCreate, LamaranStatusUpdate, UserDosenUpdate, PengumumanCreate, PengumumanUpdate, PesanCreate, ForgotPasswordRequest, ResetPasswordRequest
 from app.models import get_user, user_repo, Database
@@ -42,7 +46,7 @@ class AuthController:
         self.router.add_api_route("/reset-password", self.reset_password, methods=["POST"])
 
     @staticmethod
-    def register(body: RegisterRequest):
+    def register(body: RegisterRequest, background_tasks: BackgroundTasks):
         existing_user = get_user(body.username)
         if existing_user:
             raise HTTPException(
@@ -63,7 +67,7 @@ class AuthController:
         
         try:
             user_repo.insert_user(new_user)
-            mailer_service.send_verification_email(body.email, body.username, body.full_name)
+            background_tasks.add_task(mailer_service.send_verification_email, body.email, body.username, body.full_name)
             return {"message": "Registrasi berhasil. Silakan cek inbox atau folder spam email Anda untuk verifikasi."}
         except sqlite3.IntegrityError:
             raise HTTPException(
@@ -131,13 +135,13 @@ class AuthController:
         return {"message": "Email berhasil diverifikasi. Silakan login."}
 
     @staticmethod
-    def forgot_password(body: ForgotPasswordRequest):
+    def forgot_password(body: ForgotPasswordRequest, background_tasks: BackgroundTasks):
         user = user_repo.get_user_by_email(body.email)
         if not user:
             # Tetap berikan respons sukses demi alasan keamanan (mencegah enumerasi email)
             return {"message": "Jika email terdaftar, tautan reset password telah dikirim."}
         
-        mailer_service.send_reset_password_email(user["email"], user["username"], user["full_name"])
+        background_tasks.add_task(mailer_service.send_reset_password_email, user["email"], user["username"], user["full_name"])
         return {"message": "Jika email terdaftar, tautan reset password telah dikirim."}
 
     @staticmethod
@@ -162,6 +166,7 @@ class LowonganController:
         self.router.add_api_route("/", self.get_lowongan, methods=["GET"])
         self.router.add_api_route("/", self.create_lowongan, methods=["POST"])
         self.router.add_api_route("/upload-banner", self.upload_banner, methods=["POST"])
+        self.router.add_api_route("/stats/summary", self.get_lowongan_stats, methods=["GET"])
         self.router.add_api_route("/{id}", self.update_lowongan, methods=["PUT"])
 
     @staticmethod
@@ -172,13 +177,22 @@ class LowonganController:
             return cached_data
             
         data = user_repo.get_all_lowongan(limit=limit, offset=offset)
-        cache_manager.set_cache(cache_key, data, expire_seconds=3600)
+        cache_manager.set_cache(cache_key, data, expire_seconds=300)
         return data
+
+    @staticmethod
+    def get_lowongan_stats(user: dict = Depends(get_current_user)):
+        data = user_repo.get_all_lowongan()
+        aktif = sum(1 for l in data if l.get("status_aktif") in [1, True, "1"])
+        return {
+            "total": len(data), 
+            "aktif": aktif,
+            "recent": data[:3]
+        }
 
     @staticmethod
     def create_lowongan(body: LowonganCreate, user: dict = Depends(require_role("admin"))):
         new_id = user_repo.insert_lowongan(body.dict())
-        cache_manager.delete_cache("lowongan_*")
         return {"message": "Lowongan berhasil ditambahkan.", "id": new_id}
 
     @staticmethod
@@ -187,34 +201,44 @@ class LowonganController:
         if not existing:
             raise HTTPException(status_code=404, detail="Lowongan tidak ditemukan.")
         user_repo.update_lowongan(id, body.dict())
-        cache_manager.delete_cache("lowongan_*")
         return {"message": "Lowongan berhasil diperbarui."}
 
     @staticmethod
     async def upload_banner(file: UploadFile = File(...), user: dict = Depends(require_role("admin"))):
-        file.file.seek(0, 2)
-        if file.file.tell() > MAX_FILE_SIZE:
-            raise HTTPException(status_code=413, detail="Ukuran file melebihi batas 50MB.")
-        file.file.seek(0)
-
-        import os
-        import uuid
-        from .storage import s3_storage
-        
-        ext = os.path.splitext(file.filename)[1]
-        if not ext:
-            ext = ".jpg"
+        try:
+            file.file.seek(0, 2)
+            if file.file.tell() > MAX_FILE_SIZE:
+                raise HTTPException(status_code=413, detail="Ukuran file melebihi batas 50MB.")
+            file.file.seek(0)
             
-        file_hash = f"{uuid.uuid4().hex}{ext}"
-        
-        # Simpan menggunakan S3 local storage
-        s3_storage.put_object(file.file, file_hash)
-        public_url = s3_storage.get_url(file_hash)
-        
-        # Insert file lookup for authorization 
-        user_repo.insert_file_lookup(file_hash, user["username"], "banner")
-        
-        return {"message": "Banner berhasil diunggah", "url": public_url}
+            file_bytes = await file.read()
+
+            import os
+            import uuid
+            import io
+            
+            def _sync_upload():
+                ext = os.path.splitext(file.filename)[1]
+                if not ext:
+                    ext = ".jpg"
+                    
+                file_hash = f"{uuid.uuid4().hex}{ext}"
+                
+                # Simpan menggunakan S3 local storage global
+                s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
+                public_url = s3_storage.get_url(file_hash)
+                
+                # Insert file lookup for authorization 
+                user_repo.insert_file_lookup(file_hash, user["username"], "banner")
+                return public_url
+
+            public_url = await run_in_threadpool(_sync_upload)
+            
+            return {"message": "Banner berhasil diunggah", "url": public_url}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 class PengumumanController:
@@ -233,7 +257,7 @@ class PengumumanController:
             return cached_data
             
         data = user_repo.get_all_pengumuman()
-        cache_manager.set_cache(cache_key, data, expire_seconds=3600)
+        cache_manager.set_cache(cache_key, data, expire_seconds=60)
         return data
 
     @staticmethod
@@ -243,19 +267,16 @@ class PengumumanController:
         data["tanggal_dibuat"] = datetime.now().strftime("%Y-%m-%d")
         data["penulis"] = user["full_name"]
         pengumuman_id = user_repo.insert_pengumuman(data)
-        cache_manager.delete_cache("pengumuman_*")
         return {"id": pengumuman_id, "message": "Pengumuman berhasil ditambahkan."}
 
     @staticmethod
     def update_pengumuman(id: int, body: PengumumanUpdate, user: dict = Depends(require_role("admin"))):
         user_repo.update_pengumuman(id, body.dict())
-        cache_manager.delete_cache("pengumuman_*")
         return {"message": "Pengumuman berhasil diperbarui."}
 
     @staticmethod
     def delete_pengumuman(id: int, user: dict = Depends(require_role("admin"))):
         user_repo.delete_pengumuman(id)
-        cache_manager.delete_cache("pengumuman_*")
         return {"message": "Pengumuman berhasil dihapus."}
 
 
@@ -283,56 +304,67 @@ class LamaranController:
         else:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses ditolak.")
             
-        cache_manager.set_cache(cache_key, data, expire_seconds=3600)
+        cache_manager.set_cache(cache_key, data, expire_seconds=300)
         return data
 
     @staticmethod
     async def update_lamaran_status(id: int, body: LamaranStatusUpdate, user: dict = Depends(require_role("dosen"))):
-        existing = user_repo.get_lamaran_by_id(id)
-        if not existing:
-            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan.")
-        user_repo.update_lamaran_status(id, body.status_lamaran)
+        def _sync_ops():
+            existing = user_repo.get_lamaran_by_id(id)
+            if not existing:
+                return None, None
+                
+            # Verifikasi bahwa dosen adalah pembimbing dari mahasiswa pelamar
+            student = get_user(existing.get("username_mahasiswa"))
+            if not student or student.get("dosen_pembimbing") != user["username"]:
+                raise HTTPException(status_code=403, detail="Akses ditolak. Anda bukan dosen pembimbing mahasiswa ini.")
+                
+            user_repo.update_lamaran_status(id, body.status_lamaran)
 
-        # Kirim notifikasi ke mahasiswa
-        mahasiswa_username = existing.get("username_mahasiswa")
-        perusahaan = existing.get("perusahaan")
-        if mahasiswa_username:
-            cache_manager.delete_cache(f"lamaran_all_{user['username']}")
-            cache_manager.delete_cache(f"lamaran_all_{mahasiswa_username}")
-            cache_manager.delete_cache(f"notifikasi_{mahasiswa_username}")
-            cache_manager.delete_cache("lamaran_all_admin")
-            if body.status_lamaran == "Seleksi Perusahaan":
-                user_repo.insert_notifikasi({
-                    "username_penerima": mahasiswa_username,
-                    "judul": "Status Administrasi Lamaran",
-                    "pesan": f"Administrasi lamaran Anda di {perusahaan} telah disetujui oleh Dosen Pembimbing.",
-                    "link_path": f"/mahasiswa/lamaran/detail/{id}"
-                })
-                await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, mahasiswa_username)
-            elif body.status_lamaran == "Diterima":
-                user_repo.insert_notifikasi({
-                    "username_penerima": mahasiswa_username,
-                    "judul": "Keputusan Final Lamaran",
-                    "pesan": f"Bukti keputusan lamaran Anda di {perusahaan} telah divalidasi dan dinyatakan DITERIMA.",
-                    "link_path": f"/mahasiswa/lamaran/detail/{id}"
-                })
-                await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, mahasiswa_username)
-            elif body.status_lamaran == "Ditolak":
-                if not existing.get("bukti_penerimaan_path"):
+            # Kirim notifikasi ke mahasiswa
+            mahasiswa_username = existing.get("username_mahasiswa")
+            perusahaan = existing.get("perusahaan")
+            if mahasiswa_username:
+                cache_manager.delete_cache(f"lamaran_all_{user['username']}")
+                cache_manager.delete_cache(f"lamaran_all_{mahasiswa_username}")
+                cache_manager.delete_cache(f"notifikasi_{mahasiswa_username}")
+                if body.status_lamaran == "Seleksi Perusahaan":
                     user_repo.insert_notifikasi({
                         "username_penerima": mahasiswa_username,
                         "judul": "Status Administrasi Lamaran",
-                        "pesan": f"Administrasi lamaran Anda di {perusahaan} ditolak oleh Dosen Pembimbing.",
+                        "pesan": f"Administrasi lamaran Anda di {perusahaan} telah disetujui oleh Dosen Pembimbing.",
                         "link_path": f"/mahasiswa/lamaran/detail/{id}"
                     })
-                else:
+                elif body.status_lamaran == "Diterima":
                     user_repo.insert_notifikasi({
                         "username_penerima": mahasiswa_username,
                         "judul": "Keputusan Final Lamaran",
-                        "pesan": f"Bukti keputusan lamaran Anda di {perusahaan} ditolak. Silakan periksa kembali.",
+                        "pesan": f"Bukti keputusan lamaran Anda di {perusahaan} telah divalidasi dan dinyatakan DITERIMA.",
                         "link_path": f"/mahasiswa/lamaran/detail/{id}"
                     })
-                await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, mahasiswa_username)
+                elif body.status_lamaran == "Ditolak":
+                    if not existing.get("bukti_penerimaan_path"):
+                        user_repo.insert_notifikasi({
+                            "username_penerima": mahasiswa_username,
+                            "judul": "Status Administrasi Lamaran",
+                            "pesan": f"Administrasi lamaran Anda di {perusahaan} ditolak oleh Dosen Pembimbing.",
+                            "link_path": f"/mahasiswa/lamaran/detail/{id}"
+                        })
+                    else:
+                        user_repo.insert_notifikasi({
+                            "username_penerima": mahasiswa_username,
+                            "judul": "Keputusan Final Lamaran",
+                            "pesan": f"Bukti keputusan lamaran Anda di {perusahaan} ditolak. Silakan periksa kembali.",
+                            "link_path": f"/mahasiswa/lamaran/detail/{id}"
+                        })
+            return existing, mahasiswa_username
+
+        existing, mahasiswa_username = await run_in_threadpool(_sync_ops)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan.")
+
+        if mahasiswa_username:
+            await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, mahasiswa_username)
 
         return {"message": f"Status lamaran diperbarui menjadi {body.status_lamaran}."}
 
@@ -342,49 +374,60 @@ class LamaranController:
         if file.file.tell() > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="Ukuran file melebihi batas 50MB.")
         file.file.seek(0)
+        
+        file_bytes = await file.read()
 
         import os
         import uuid
+        import io
         
-        # Pastikan lamaran milik mahasiswa ini
-        existing = user_repo.get_lamaran_by_id(id, user["username"])
-        if not existing:
-            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan atau Anda tidak memiliki akses.")
+        def _sync_ops():
+            # Pastikan lamaran milik mahasiswa ini
+            existing = user_repo.get_lamaran_by_id(id, user["username"])
+            if not existing:
+                return False, None, None
+                
+            ext = os.path.splitext(file.filename)[1]
+            if not ext:
+                ext = ".pdf"
+                
+            file_hash = f"{uuid.uuid4().hex}{ext}"
             
-        ext = os.path.splitext(file.filename)[1]
-        if not ext:
-            ext = ".pdf"
+            # Simpan menggunakan S3
+            s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
             
-        file_hash = f"{uuid.uuid4().hex}{ext}"
-        
-        # Simpan menggunakan S3
-        s3_storage.put_object(file.file, file_hash)
-        
-        # Insert file lookup for authorization
-        user_repo.insert_file_lookup(file_hash, user["username"], "bukti")
-        
-        # Update database lamaran
-        path = s3_storage.get_url(file_hash)
-        user_repo.update_lamaran_bukti(id, path)
-        user_repo.update_lamaran_status(id, "Menunggu Validasi Akhir")
+            # Insert file lookup for authorization
+            user_repo.insert_file_lookup(file_hash, user["username"], "bukti")
+            
+            # Update database lamaran
+            path = s3_storage.get_url(file_hash)
+            user_repo.update_lamaran_bukti(id, path)
+            user_repo.update_lamaran_status(id, "Menunggu Validasi Akhir")
 
-        # Kirim notifikasi ke dosen pembimbing
-        student = user_repo.get_user(user["username"])
-        dosen_username = student.get("dosen_pembimbing")
-        if dosen_username:
-            perusahaan = existing.get("perusahaan") if existing else "Perusahaan"
-            user_repo.insert_notifikasi({
-                "username_penerima": dosen_username,
-                "judul": "Validasi Bukti Penerimaan",
-                "pesan": f"{student.get('full_name')} ({student.get('nim')}) telah mengunggah bukti keputusan untuk lamaran di {perusahaan}. Silakan lakukan validasi akhir.",
-                "link_path": "/dosen/lamaran"
-            })
-            await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, dosen_username)
-            cache_manager.delete_cache(f"notifikasi_{dosen_username}")
-            cache_manager.delete_cache(f"lamaran_all_{dosen_username}")
+            # Kirim notifikasi ke dosen pembimbing
+            student = user_repo.get_user(user["username"])
+            dosen_username = student.get("dosen_pembimbing")
+            if dosen_username:
+                perusahaan = existing.get("perusahaan") if existing else "Perusahaan"
+                user_repo.insert_notifikasi({
+                    "username_penerima": dosen_username,
+                    "judul": "Validasi Bukti Penerimaan",
+                    "pesan": f"{student.get('full_name')} ({student.get('nim')}) telah mengunggah bukti keputusan untuk lamaran di {perusahaan}. Silakan lakukan validasi akhir.",
+                    "link_path": "/dosen/lamaran"
+                })
+                cache_manager.delete_cache(f"notifikasi_{dosen_username}")
+                cache_manager.delete_cache(f"lamaran_all_{dosen_username}")
+                
+            cache_manager.delete_cache(f"lamaran_all_{user['username']}")
             
-        cache_manager.delete_cache(f"lamaran_all_{user['username']}")
-        cache_manager.delete_cache("lamaran_all_admin")
+            return True, path, dosen_username
+
+        success, path, dosen_username = await run_in_threadpool(_sync_ops)
+        if not success:
+            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan atau Anda tidak memiliki akses.")
+
+        if dosen_username:
+            await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, dosen_username)
         
         return {"message": "Bukti keputusan berhasil diunggah", "path": path}
 
@@ -402,57 +445,79 @@ class LamaranController:
 
     @staticmethod
     def get_lamaran_by_id(id: int, current_user: dict = Depends(get_current_user)):
-        username = current_user["username"] if current_user["role"] == "mahasiswa" else None
-        result = user_repo.get_lamaran_by_id(id, username)
+        # Mengambil data lamaran (sementara tanpa filter username untuk keperluan verifikasi)
+        result = user_repo.get_lamaran_by_id(id)
         if not result:
-            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan atau Anda tidak memiliki akses.")
+            raise HTTPException(status_code=404, detail="Lamaran tidak ditemukan.")
+
+        # Verifikasi akses mahasiswa
+        if current_user["role"] == "mahasiswa":
+            if result.get("username_mahasiswa") != current_user["username"]:
+                raise HTTPException(status_code=403, detail="Akses ditolak. Anda hanya bisa melihat lamaran Anda sendiri.")
+                
+        # Verifikasi akses dosen
+        elif current_user["role"] == "dosen":
+            student = get_user(result.get("username_mahasiswa"))
+            if not student or student.get("dosen_pembimbing") != current_user["username"]:
+                raise HTTPException(status_code=403, detail="Akses ditolak. Anda bukan dosen pembimbing mahasiswa ini.")
+                
+        # Admin diizinkan melihat
+        elif current_user["role"] == "admin":
+            pass
+            
+        # Blokir role tak dikenal
+        else:
+            raise HTTPException(status_code=403, detail="Akses ditolak. Peran Anda tidak memiliki izin untuk melihat lamaran ini.")
+
         return result
 
     @staticmethod
     async def create_lamaran(body: LamaranCreate, current_user: dict = Depends(require_role("mahasiswa"))):
-        # 1. Pastikan mahasiswa sudah upload CV
-        user_info = get_user(current_user["username"])
-        if not user_info.get("cv_path"):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Anda harus mengunggah CV terlebih dahulu sebelum melamar."
-            )
+        def _sync_ops():
+            # 1. Pastikan mahasiswa sudah upload CV
+            user_info = get_user(current_user["username"])
+            if not user_info.get("cv_path"):
+                return {"error": "Anda harus mengunggah CV terlebih dahulu sebelum melamar."}
 
-        # 2. Cek apakah sudah melamar di lowongan & posisi ini
-        if user_repo.check_existing_lamaran(body.id_lowongan, current_user["username"], body.posisi):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Anda sudah melamar untuk posisi ini pada lowongan ini."
-            )
+            # 2. Cek apakah sudah melamar di lowongan & posisi ini
+            if user_repo.check_existing_lamaran(body.id_lowongan, current_user["username"], body.posisi):
+                return {"error": "Anda sudah melamar untuk posisi ini pada lowongan ini."}
 
-        # 3. Insert data lamaran
-        lamaran_data = {
-            "id_lowongan": body.id_lowongan,
-            "username_mahasiswa": current_user["username"],
-            "posisi": body.posisi
-        }
-        lamaran_id = user_repo.insert_lamaran(lamaran_data)
+            # 3. Insert data lamaran
+            lamaran_data = {
+                "id_lowongan": body.id_lowongan,
+                "username_mahasiswa": current_user["username"],
+                "posisi": body.posisi
+            }
+            lamaran_id = user_repo.insert_lamaran(lamaran_data)
 
-        # 4. Kirim notifikasi ke dosen pembimbing
-        dosen_username = user_info.get("dosen_pembimbing")
-        if dosen_username:
-            lowongan = user_repo.get_lowongan_by_id(body.id_lowongan)
-            perusahaan = lowongan.get("perusahaan") if lowongan else "Perusahaan"
-            user_repo.insert_notifikasi({
-                "username_penerima": dosen_username,
-                "judul": "Validasi Administrasi Baru",
-                "pesan": f"{user_info.get('full_name')} ({user_info.get('nim')}) telah mengajukan lamaran baru di {perusahaan} untuk posisi {body.posisi}. Silakan lakukan validasi administrasi.",
-                "link_path": "/dosen/lamaran"
-            })
-            await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, dosen_username)
-            cache_manager.delete_cache(f"notifikasi_{dosen_username}")
-            cache_manager.delete_cache(f"lamaran_all_{dosen_username}")
+            # 4. Kirim notifikasi ke dosen pembimbing
+            dosen_username = user_info.get("dosen_pembimbing")
+            if dosen_username:
+                lowongan = user_repo.get_lowongan_by_id(body.id_lowongan)
+                perusahaan = lowongan.get("perusahaan") if lowongan else "Perusahaan"
+                user_repo.insert_notifikasi({
+                    "username_penerima": dosen_username,
+                    "judul": "Validasi Administrasi Baru",
+                    "pesan": f"{user_info.get('full_name')} ({user_info.get('nim')}) telah mengajukan lamaran baru di {perusahaan} untuk posisi {body.posisi}. Silakan lakukan validasi administrasi.",
+                    "link_path": "/dosen/lamaran"
+                })
+                cache_manager.delete_cache(f"notifikasi_{dosen_username}")
+                cache_manager.delete_cache(f"lamaran_all_{dosen_username}")
 
-        cache_manager.delete_cache(f"lamaran_all_{current_user['username']}")
-        cache_manager.delete_cache(f"profile_{current_user['username']}")
-        cache_manager.delete_cache("lamaran_all_admin")
+            cache_manager.delete_cache(f"lamaran_all_{current_user['username']}")
+            cache_manager.delete_cache(f"profile_{current_user['username']}")
+            
+            return {"lamaran_id": lamaran_id, "dosen_username": dosen_username}
+            
+        result = await run_in_threadpool(_sync_ops)
+        if "error" in result:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result["error"])
 
-        return {"message": "Lamaran berhasil dikirim.", "id": lamaran_id}
+        if result.get("dosen_username"):
+            await manager.send_personal_message({"type": "notifikasi", "data": {"message": "New notification"}}, result["dosen_username"])
+
+        return {"message": "Lamaran berhasil dikirim.", "id": result["lamaran_id"]}
 
 
 class UsersController:
@@ -550,6 +615,16 @@ class HealthController:
         return {"status": "ok"}
 
 
+class SystemController:
+    def __init__(self):
+        self.router = APIRouter(prefix="/system", tags=["System"])
+        self.router.add_api_route("/error-logs", self.get_error_logs, methods=["GET"])
+
+    @staticmethod
+    def get_error_logs(limit: int = 50, offset: int = 0, user: dict = Depends(require_role("admin"))):
+        return user_repo.get_error_logs(limit=limit, offset=offset)
+
+
 class ProfileController:
     def __init__(self):
         self.router = APIRouter(prefix="/profile", tags=["Profile"])
@@ -596,61 +671,69 @@ class ProfileController:
         if file.file.tell() > MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="Ukuran file melebihi batas 50MB.")
         file.file.seek(0)
-            
-        user = get_user(current_user["username"])
-        old_url = user.get(file_type)
-        if old_url:
-            old_filename = old_url.split('/')[-1]
-            s3_storage.delete_object(old_filename)
-            user_repo.delete_file_lookup(old_filename)
+        
+        file_bytes = await file.read()
 
-        ext = os.path.splitext(file.filename)[1]
-        if not ext:
-            ext = ".png" if file_type == "foto_profile" else ".pdf"
+        import io
+        import os
+        import uuid
             
-        file_hash = f"{uuid.uuid4().hex}{ext}"
-        
-        # Simpan menggunakan S3 local storage
-        if file_type == "foto_profile":
-            try:
-                # pyrefly: ignore [missing-import]
-                from PIL import Image
-                import io
+        def _sync_ops():
+            user = get_user(current_user["username"])
+            old_url = user.get(file_type)
+            if old_url:
+                old_filename = old_url.split('/')[-1]
+                s3_storage.delete_object(old_filename)
+                user_repo.delete_file_lookup(old_filename)
+
+            ext = os.path.splitext(file.filename)[1]
+            if not ext:
+                ext = ".png" if file_type == "foto_profile" else ".pdf"
                 
-                img = Image.open(file.file)
-                if img.mode in ("RGBA", "P"):
-                    img = img.convert("RGB")
+            file_hash = f"{uuid.uuid4().hex}{ext}"
+            
+            # Simpan menggunakan S3 local storage
+            if file_type == "foto_profile":
+                try:
+                    # pyrefly: ignore [missing-import]
+                    from PIL import Image
                     
-                base_width = 500
-                w, h = img.size
-                if w > base_width:
-                    w_percent = (base_width / float(w))
-                    h_size = int((float(h) * float(w_percent)))
-                    img = img.resize((base_width, h_size), Image.Resampling.LANCZOS)
+                    img = Image.open(io.BytesIO(file_bytes))
+                    if img.mode in ("RGBA", "P"):
+                        img = img.convert("RGB")
+                        
+                    base_width = 500
+                    w, h = img.size
+                    if w > base_width:
+                        w_percent = (base_width / float(w))
+                        h_size = int((float(h) * float(w_percent)))
+                        img = img.resize((base_width, h_size), Image.Resampling.LANCZOS)
+                    
+                    buffer = io.BytesIO()
+                    img.save(buffer, format="JPEG", quality=85)
+                    buffer.seek(0)
+                    
+                    ext = ".jpg"
+                    file_hash = f"{uuid.uuid4().hex}{ext}"
+                    
+                    s3_storage.put_object(buffer, file_hash)
+                except ImportError:
+                    print("Warning: Pillow (PIL) tidak terinstall. Foto disimpan tanpa kompresi.")
+                    s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
+                except Exception as e:
+                    print(f"Error kompresi gambar: {e}. Fallback ke file asli.")
+                    s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
+            else:
+                s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
                 
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=85)
-                buffer.seek(0)
-                
-                ext = ".jpg"
-                file_hash = f"{uuid.uuid4().hex}{ext}"
-                
-                s3_storage.put_object(buffer, file_hash)
-            except ImportError:
-                print("Warning: Pillow (PIL) tidak terinstall. Foto disimpan tanpa kompresi.")
-                file.file.seek(0)
-                s3_storage.put_object(file.file, file_hash)
-            except Exception as e:
-                print(f"Error kompresi gambar: {e}. Fallback ke file asli.")
-                file.file.seek(0)
-                s3_storage.put_object(file.file, file_hash)
-        else:
-            s3_storage.put_object(file.file, file_hash)
-        public_url = s3_storage.get_url(file_hash)
-        
-        user_repo.insert_file_lookup(file_hash, current_user["username"], file_type)
-        user_repo.update_user_file(current_user["username"], file_type, public_url)
-        cache_manager.delete_cache(f"profile_{current_user['username']}")
+            public_url = s3_storage.get_url(file_hash)
+            
+            user_repo.insert_file_lookup(file_hash, current_user["username"], file_type)
+            user_repo.update_user_file(current_user["username"], file_type, public_url)
+            cache_manager.delete_cache(f"profile_{current_user['username']}")
+            return public_url
+            
+        public_url = await run_in_threadpool(_sync_ops)
         return {"message": "File berhasil diunggah", "url": public_url}
 
     @staticmethod
@@ -678,34 +761,70 @@ class FileController:
         self.router.add_api_route("/uploads/{bucket_name}/{filename}", self.get_file, methods=["GET"])
 
     @staticmethod
-    def get_file(bucket_name: str, filename: str, current_user: dict = Depends(get_current_user)):
-        # 1. Pastikan file ada di lookup table
+    def get_file(bucket_name: str, filename: str, request: Request, token: str = None):
         file_info = user_repo.get_file_lookup(filename)
         if not file_info:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File tidak ditemukan atau telah dihapus")
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File tidak ditemukan")
 
-        # 2. Otorisasi: Mahasiswa hanya boleh melihat filenya sendiri, kecuali foto profil dan banner
-        if file_info.get("file_type") not in ["foto_profile", "banner"]:
-            if current_user["role"] == "mahasiswa":
-                if current_user['username'] != file_info["username"]:
-                    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Akses ditolak")
+        is_public = file_info.get("file_type") in ["foto_profile", "banner", "chat_attachment"]
+        
+        if not is_public:
+            auth_token = token
+            if not auth_token:
+                auth_header = request.headers.get("Authorization")
+                if auth_header and auth_header.startswith("Bearer "):
+                    auth_token = auth_header.split(" ")[1]
+            if not auth_token:
+                raise HTTPException(status_code=401, detail="Token diperlukan")
+            try:
+                from app.auth import AuthService
+                from jose import JWTError
+                try:
+                    payload = AuthService._decode_token(auth_token)
+                except JWTError:
+                    raise HTTPException(status_code=401, detail="Token tidak valid")
+                    
+                user = get_user(payload.get("sub"))
+                if not user:
+                    raise HTTPException(status_code=401, detail="User tidak valid")
                 
+                # Verifikasi akses mahasiswa
+                if user["role"] == "mahasiswa":
+                    if user["username"] != file_info["username"]:
+                        raise HTTPException(status_code=403, detail="Akses ditolak. Anda hanya bisa melihat file Anda sendiri.")
+                        
+                # Verifikasi akses dosen
+                elif user["role"] == "dosen":
+                    file_owner = get_user(file_info["username"])
+                    if not file_owner or file_owner.get("dosen_pembimbing") != user["username"]:
+                        raise HTTPException(status_code=403, detail="Akses ditolak. Anda bukan dosen pembimbing mahasiswa ini.")
+                        
+                # Memblokir "admin" dan semua role yang tidak dikenal (Deny by default)
+                else:
+                    raise HTTPException(status_code=403, detail="Akses ditolak. Peran Anda tidak memiliki izin untuk melihat file ini.")
+                    
+            except HTTPException:
+                raise
+            except Exception:
+                raise HTTPException(status_code=401, detail="Token tidak valid")
+
         local_s3_dir = os.path.join(os.path.dirname(__file__), "..", "local_s3")
         file_path = os.path.join(local_s3_dir, bucket_name, filename)
-        
         if not os.path.exists(file_path):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File fisik tidak ditemukan")
             
         return FileResponse(
             file_path,
             headers={
-                "Cache-Control": "public, max-age=604800, must-revalidate"
+                "Cache-Control": "public, max-age=2592000, immutable" if is_public else "private, max-age=604800"
             }
         )
 
 class ConnectionManager:
     def __init__(self):
         self.active_connections = {} # dict of username -> WebSocket
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        self.redis_client = redis.from_url(redis_url, decode_responses=True)
 
     async def connect(self, websocket: WebSocket, username: str):
         await websocket.accept()
@@ -716,10 +835,55 @@ class ConnectionManager:
             del self.active_connections[username]
 
     async def send_personal_message(self, message: dict, username: str):
+        payload = json.dumps({"target": username, "message": message})
+        try:
+            await self.redis_client.publish("ws_chat_channel", payload)
+        except Exception as e:
+            print(f"Redis publish error: {e}")
+
+    async def _send_local_message(self, message: dict, username: str):
         if username in self.active_connections:
-            await self.active_connections[username].send_json(message)
+            try:
+                await self.active_connections[username].send_json(message)
+            except Exception:
+                self.disconnect(username)
+
+    async def pubsub_reader(self):
+        pubsub = self.redis_client.pubsub()
+        await pubsub.subscribe("ws_chat_channel")
+        try:
+            async for message in pubsub.listen():
+                if message["type"] == "message":
+                    data = json.loads(message["data"])
+                    target = data.get("target")
+                    msg = data.get("message")
+                    if target and msg:
+                        await self._send_local_message(msg, target)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            print("PubSub Reader Error:", e)
+        finally:
+            await pubsub.unsubscribe("ws_chat_channel")
 
 manager = ConnectionManager()
+
+
+async def handle_websocket_connection(websocket: WebSocket, username: str):
+    await manager.connect(websocket, username)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            try:
+                import json
+                payload = json.loads(data)
+                if payload.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except:
+                pass
+    except WebSocketDisconnect:
+        manager.disconnect(username)
+
 
 class ChatController:
     def __init__(self):
@@ -729,22 +893,11 @@ class ChatController:
         self.router.add_api_route("/history/{partner_username}", self.get_history, methods=["GET"])
         self.router.add_api_route("/mark-read/{partner_username}", self.mark_read, methods=["POST"])
         self.router.add_api_route("/send", self.send_message, methods=["POST"])
+        self.router.add_api_route("/upload-attachment", self.upload_attachment, methods=["POST"])
         
         @self.router.websocket("/ws/{username}")
         async def websocket_endpoint(websocket: WebSocket, username: str):
-            await manager.connect(websocket, username)
-            try:
-                while True:
-                    data = await websocket.receive_text()
-                    try:
-                        import json
-                        payload = json.loads(data)
-                        if payload.get("type") == "ping":
-                            await websocket.send_json({"type": "pong"})
-                    except:
-                        pass
-            except WebSocketDisconnect:
-                manager.disconnect(username)
+            await handle_websocket_connection(websocket, username)
 
     @staticmethod
     def get_contacts(user: dict = Depends(get_current_user)):
@@ -770,40 +923,75 @@ class ChatController:
     @staticmethod
     def get_history(partner_username: str, limit: int = 10, offset: int = 0, user: dict = Depends(get_current_user)):
         if not partner_username.startswith('GROUP_'):
-            user_repo.mark_chat_read(sender=partner_username, receiver=user["username"])
-            cache_manager.delete_cache(f"chat_unread_{user['username']}")
+            updated = user_repo.mark_chat_read(sender=partner_username, receiver=user["username"])
+            if updated > 0:
+                cache_manager.delete_cache(f"chat_unread_{user['username']}")
         return user_repo.get_chat_history(user["username"], partner_username, limit=limit, offset=offset)
 
     @staticmethod
     def mark_read(partner_username: str, user: dict = Depends(get_current_user)):
         if not partner_username.startswith('GROUP_'):
-            user_repo.mark_chat_read(sender=partner_username, receiver=user["username"])
-            cache_manager.delete_cache(f"chat_unread_{user['username']}")
+            updated = user_repo.mark_chat_read(sender=partner_username, receiver=user["username"])
+            if updated > 0:
+                cache_manager.delete_cache(f"chat_unread_{user['username']}")
         return {"message": "Telah dibaca"}
 
     @staticmethod
+    async def upload_attachment(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+        file_bytes = await file.read()
+        import os
+        import uuid
+        import io
+        
+        def _sync_ops():
+            ext = os.path.splitext(file.filename)[1]
+            file_hash = f"chat_{uuid.uuid4().hex}{ext}"
+            
+            s3_storage.put_object(io.BytesIO(file_bytes), file_hash)
+            public_url = s3_storage.get_url(file_hash)
+            
+            ext_lower = ext.lower()
+            attachment_type = "image" if ext_lower in [".jpg", ".jpeg", ".png", ".gif", ".webp"] else "document"
+            
+            user_repo.insert_file_lookup(file_hash, current_user["username"], "chat_attachment")
+            
+            return {"url": public_url, "type": attachment_type, "filename": file.filename}
+
+        return await run_in_threadpool(_sync_ops)
+
+    @staticmethod
     async def send_message(body: PesanCreate, user: dict = Depends(get_current_user)):
-        from datetime import datetime
-        data = {
-            "sender_username": user["username"],
-            "receiver_username": body.receiver_username,
-            "pesan": body.pesan,
-            "waktu_kirim": datetime.now()
-        }
-        msg_id = user_repo.insert_pesan(data)
-        data["id"] = msg_id
-        data["is_read"] = 0
-        data["waktu_kirim"] = data["waktu_kirim"].isoformat()
-        
-        data["sender_full_name"] = user["full_name"]
-        data["sender_foto_profile"] = user["foto_profile"]
-        data["isNew"] = True
-        
+        def _sync_ops():
+            from datetime import datetime
+            data = {
+                "sender_username": user["username"],
+                "receiver_username": body.receiver_username,
+                "pesan": body.pesan,
+                "waktu_kirim": datetime.now(),
+                "attachment_url": body.attachment_url,
+                "attachment_type": body.attachment_type,
+                "attachment_name": body.attachment_name
+            }
+            msg_id = user_repo.insert_pesan(data)
+            data["id"] = msg_id
+            data["is_read"] = 0
+            data["waktu_kirim"] = data["waktu_kirim"].isoformat()
+            
+            data["sender_full_name"] = user["full_name"]
+            data["sender_foto_profile"] = user["foto_profile"]
+            data["isNew"] = True
+            
+            members = []
+            if body.receiver_username.startswith('GROUP_'):
+                dosen_username = body.receiver_username.replace('GROUP_', '')
+                members = user_repo.get_group_members(dosen_username)
+                
+            return data, members
+
+        data, members = await run_in_threadpool(_sync_ops)
         ws_payload = {"type": "chat", "data": data}
         
         if body.receiver_username.startswith('GROUP_'):
-            dosen_username = body.receiver_username.replace('GROUP_', '')
-            members = user_repo.get_group_members(dosen_username)
             for member in members:
                 if member != user["username"]:
                     await manager.send_personal_message(ws_payload, member)
@@ -846,15 +1034,24 @@ class NotifikasiController:
         return {"message": "Semua notifikasi berhasil ditandai sebagai dibaca."}
 
 
+@asynccontextmanager
+async def lifespan_context(app: FastAPI):
+    task = asyncio.create_task(manager.pubsub_reader())
+    yield
+    task.cancel()
+
 class ApplicationServer:
     def __init__(self):
         self.app = FastAPI(
             title="Login API",
             description="Backend API untuk Login",
             version="1.0.0",
+            lifespan=lifespan_context,
+            debug=True
         )
         self._configure_cors()
         self._register_routes()
+        self._register_exception_handlers()
 
     def _configure_cors(self):
         self.app.add_middleware(
@@ -862,6 +1059,11 @@ class ApplicationServer:
             allow_origins=[
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",
+                "https://agricareer.site",
+                "https://www.agricareer.site",
+                "https://agricareer-frontend.pages.dev",
+                "https://agricareer.pages.dev"
+
             ],
             allow_credentials=True,
             allow_methods=["*"],
@@ -881,6 +1083,58 @@ class ApplicationServer:
         self.app.include_router(FileController().router)
         self.app.include_router(ChatController().router)
         self.app.include_router(NotifikasiController().router)
+        self.app.include_router(SystemController().router)
+
+        @self.app.websocket("/api/chat/ws/{username}")
+        async def api_websocket_endpoint(websocket: WebSocket, username: str):
+            await handle_websocket_connection(websocket, username)
+
+    def _register_exception_handlers(self):
+        import traceback
+        from fastapi.responses import JSONResponse
+        from fastapi.exceptions import RequestValidationError
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+        import logging
+
+        logger = logging.getLogger("uvicorn.error")
+
+        @self.app.exception_handler(Exception)
+        async def global_exception_handler(request: Request, exc: Exception):
+            if isinstance(exc, (HTTPException, StarletteHTTPException, RequestValidationError)):
+                # Biarkan FastAPI menangani error ini secara native
+                raise exc
+
+            tb_str = traceback.format_exc()
+            error_message = str(exc)
+            
+            # Coba ambil identitas pengguna dari header Authorization jika ada
+            username = None
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                try:
+                    token = auth_header.split(" ")[1]
+                    from app.auth import _decode_token
+                    payload = _decode_token(token)
+                    username = payload.get("sub")
+                except Exception:
+                    pass
+
+            # Simpan error ke database
+            try:
+                user_repo.insert_error_log(
+                    endpoint=str(request.url.path),
+                    method=request.method,
+                    error_message=error_message,
+                    traceback_str=tb_str,
+                    username=username
+                )
+            except Exception as db_err:
+                logger.error(f"Failed to log error to DB: {db_err}")
+                
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal Server Error"}
+            )
 
     def get_app(self) -> FastAPI:
         return self.app

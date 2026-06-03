@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================================
    Sistem Informasi Magang – Global Styles
    Color Palette:
@@ -245,7 +249,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background: linear-gradient(rgba(38, 60, 146, 0.6), rgba(38, 60, 146, 0.8)), url('/img_background.png');
+  background: linear-gradient(rgba(38, 60, 146, 0.6), rgba(38, 60, 146, 0.8)), url('/img_background1.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

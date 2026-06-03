@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /login
+Allow: /register
+Allow: /forgot-password
+Disallow: /mahasiswa/
+Disallow: /admin/
+Disallow: /dosen/
+Disallow: /api/
+
+Sitemap: https://yourdomain.com/sitemap.xml

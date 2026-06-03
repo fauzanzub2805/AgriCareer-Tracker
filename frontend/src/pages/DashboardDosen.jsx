@@ -29,9 +29,7 @@ export default function DashboardDosen() {
 
 
 
-  const fallbackAvatarUrl = profile?.full_name
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : `https://ui-avatars.com/api/?name=Admin&background=random`
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
 
   const avatarUrl = profile?.foto_profile || user?.foto_profile || fallbackAvatarUrl
 

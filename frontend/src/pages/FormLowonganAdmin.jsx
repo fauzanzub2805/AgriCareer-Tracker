@@ -74,9 +74,7 @@ export default function FormLowonganAdmin() {
     
     try {
       setUploadingBanner(true)
-      const res = await api.post('/lowongan/upload-banner', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const res = await api.post('/lowongan/upload-banner', formData)
       setForm(prev => ({ ...prev, banner_path: res.data.url }))
     } catch (err) {
       console.error('Upload error', err)

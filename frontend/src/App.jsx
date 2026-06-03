@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider } from './context/AuthContext'
+import { AuthProvider, useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -37,6 +37,21 @@ const ProfileDosen = lazy(() => import('./pages/ProfileDosen'))
 const LowonganDosen = lazy(() => import('./pages/LowonganDosen'))
 const DetailLowonganDosen = lazy(() => import('./pages/DetailLowonganDosen'))
 
+const ROLE_REDIRECT = {
+  mahasiswa: '/mahasiswa/dashboard',
+  admin: '/admin/dashboard',
+  dosen: '/dosen/dashboard',
+}
+
+function RootRedirect() {
+  const { user } = useAuth()
+  if (user && user.role) {
+    const role = String(user.role).toLowerCase()
+    return <Navigate to={ROLE_REDIRECT[role] || '/login'} replace />
+  }
+  return <Navigate to="/login" replace />
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -47,6 +62,9 @@ export default function App() {
           </div>
         }>
           <Routes>
+            {/* Root */}
+            <Route path="/" element={<RootRedirect />} />
+
             {/* Public */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -94,7 +112,7 @@ export default function App() {
             </Route>
 
             {/* Catch-all */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

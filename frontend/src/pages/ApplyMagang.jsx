@@ -64,9 +64,7 @@ export default function ApplyMagang() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      await api.post('/profile/upload/cv_path', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      await api.post('/profile/upload/cv_path', formData);
       alert('CV berhasil diperbarui!');
       await fetchProfile(); // Refresh profile to show new CV preview
     } catch (err) {

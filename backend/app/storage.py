@@ -19,6 +19,13 @@ class LocalS3Storage:
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file_obj, buffer)
 
+    async def upload_file(self, file, folder: str) -> str:
+        import uuid
+        ext = os.path.splitext(file.filename)[1]
+        filename = f"{folder}/{uuid.uuid4()}{ext}"
+        self.put_object(file.file, filename)
+        return self.get_url(filename)
+
     def get_url(self, object_name: str) -> str:
         """
         Returns a URL path mimicking S3 URL structure.

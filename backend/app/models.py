@@ -117,10 +117,23 @@ class Database:
                     pesan TEXT NOT NULL,
                     waktu_kirim DATETIME NOT NULL,
                     is_read BOOLEAN DEFAULT 0,
+                    attachment_url TEXT,
+                    attachment_type TEXT,
+                    attachment_name TEXT,
                     FOREIGN KEY (sender_username) REFERENCES users (username),
                     FOREIGN KEY (receiver_username) REFERENCES users (username)
                 )
             ''')
+
+            # Migrasi penambahan kolom attachment pada chat
+            cursor = conn.execute("PRAGMA table_info(pesan_chat)")
+            chat_columns = [info['name'] for info in cursor.fetchall()]
+            if 'attachment_url' not in chat_columns:
+                conn.execute('ALTER TABLE pesan_chat ADD COLUMN attachment_url TEXT')
+            if 'attachment_type' not in chat_columns:
+                conn.execute('ALTER TABLE pesan_chat ADD COLUMN attachment_type TEXT')
+            if 'attachment_name' not in chat_columns:
+                conn.execute('ALTER TABLE pesan_chat ADD COLUMN attachment_name TEXT')
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS notifikasi (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +146,28 @@ class Database:
                     FOREIGN KEY (username_penerima) REFERENCES users (username)
                 )
             ''')
+            
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS error_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT,
+                    endpoint TEXT,
+                    method TEXT,
+                    error_message TEXT,
+                    stack_trace TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Tambahan Indeks untuk Optimasi Performa
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_lamaran_mahasiswa ON lamaran(username_mahasiswa)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_lamaran_lowongan ON lamaran(id_lowongan)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_pesan_sender ON pesan_chat(sender_username)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_pesan_receiver ON pesan_chat(receiver_username)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_notifikasi_penerima ON notifikasi(username_penerima)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_error_logs_waktu ON error_logs(created_at)')
+            
             conn.commit()
 
     @staticmethod
@@ -285,10 +320,10 @@ class UserRepository:
         with self._db.get_connection() as conn:
             cursor = conn.execute(
                 '''
-                INSERT INTO pesan_chat (sender_username, receiver_username, pesan, waktu_kirim)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO pesan_chat (sender_username, receiver_username, pesan, waktu_kirim, attachment_url, attachment_type, attachment_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''',
-                (data["sender_username"], data["receiver_username"], data["pesan"], data["waktu_kirim"])
+                (data["sender_username"], data["receiver_username"], data.get("pesan", ""), data["waktu_kirim"], data.get("attachment_url"), data.get("attachment_type"), data.get("attachment_name"))
             )
             conn.commit()
             return cursor.lastrowid
@@ -299,7 +334,7 @@ class UserRepository:
                 cursor = conn.execute(
                     '''
                     SELECT p.id, p.sender_username, p.receiver_username, p.pesan, p.waktu_kirim, p.is_read,
-                           u.full_name as sender_full_name, u.foto_profile as sender_foto_profile
+                           p.attachment_url, p.attachment_type, p.attachment_name, u.full_name as sender_full_name, u.foto_profile as sender_foto_profile
                     FROM pesan_chat p
                     JOIN users u ON p.sender_username = u.username
                     WHERE p.receiver_username = ?
@@ -311,7 +346,7 @@ class UserRepository:
             else:
                 cursor = conn.execute(
                     '''
-                    SELECT id, sender_username, receiver_username, pesan, waktu_kirim, is_read
+                    SELECT id, sender_username, receiver_username, pesan, waktu_kirim, is_read, attachment_url, attachment_type, attachment_name
                     FROM pesan_chat
                     WHERE (sender_username = ? AND receiver_username = ?)
                        OR (sender_username = ? AND receiver_username = ?)
@@ -324,9 +359,9 @@ class UserRepository:
             rows.reverse()
             return rows
             
-    def mark_chat_read(self, sender: str, receiver: str) -> None:
+    def mark_chat_read(self, sender: str, receiver: str) -> int:
         with self._db.get_connection() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 '''
                 UPDATE pesan_chat SET is_read = 1 
                 WHERE sender_username = ? AND receiver_username = ? AND is_read = 0
@@ -334,6 +369,7 @@ class UserRepository:
                 (sender, receiver)
             )
             conn.commit()
+            return cursor.rowcount
 
     def get_contacts_dosen(self, dosen_username: str) -> list:
         with self._db.get_connection() as conn:
@@ -613,13 +649,14 @@ class UserRepository:
             )
             return [dict(row) for row in cursor.fetchall()]
 
-    def mark_notifikasi_as_read(self, notifikasi_id: int, username: str) -> None:
+    def mark_notifikasi_as_read(self, notif_id: int, username: str) -> bool:
         with self._db.get_connection() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 "UPDATE notifikasi SET is_read = 1 WHERE id = ? AND username_penerima = ?",
-                (notifikasi_id, username)
+                (notif_id, username)
             )
             conn.commit()
+            return cursor.rowcount > 0
 
     def mark_all_notifikasi_as_read(self, username: str) -> None:
         with self._db.get_connection() as conn:
@@ -628,6 +665,25 @@ class UserRepository:
                 (username,)
             )
             conn.commit()
+
+    def insert_error_log(self, endpoint: str, method: str, error_message: str, traceback_str: str, username: str = None) -> None:
+        with self._db.get_connection() as conn:
+            conn.execute(
+                '''
+                INSERT INTO error_logs (endpoint, method, error_message, stack_trace, username)
+                VALUES (?, ?, ?, ?, ?)
+                ''',
+                (endpoint, method, error_message, traceback_str, username)
+            )
+            conn.commit()
+
+    def get_error_logs(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        with self._db.get_connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM error_logs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset)
+            )
+            return [dict(row) for row in cursor.fetchall()]
 
 
 import json

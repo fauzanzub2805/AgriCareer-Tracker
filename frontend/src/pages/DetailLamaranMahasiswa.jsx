@@ -35,9 +35,7 @@ export default function DetailLamaranMahasiswa() {
       const formData = new FormData()
       formData.append('file', fileBukti)
       
-      await api.post(`/lamaran/${id}/upload-bukti`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      await api.post(`/lamaran/${id}/upload-bukti`, formData)
       alert("Bukti keputusan berhasil diunggah!")
       const res = await api.get(`/lamaran/${id}`)
       setLamaran(res.data)

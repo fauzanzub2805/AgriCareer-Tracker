@@ -43,9 +43,7 @@ export default function ProfileMahasiswa() {
     formData.append('file', file)
 
     try {
-      await api.post(`/profile/upload/${type}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      await api.post(`/profile/upload/${type}`, formData)
       if (type === 'foto_profile') {
         // optimistically fetch and update user context too
         const profileRes = await api.get('/profile/me')
@@ -85,9 +83,7 @@ export default function ProfileMahasiswa() {
 
 
 
-  const fallbackAvatarUrl = user?.full_name 
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2070&auto=format&fit=crop'
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || 'User')}&background=random`
   
   const avatarUrl = profile?.foto_profile || fallbackAvatarUrl
 

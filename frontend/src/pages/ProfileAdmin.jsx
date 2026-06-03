@@ -46,9 +46,7 @@ export default function ProfileAdmin() {
     formData.append('file', file)
 
     try {
-      const res = await api.post(`/profile/upload/${type}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      const res = await api.post(`/profile/upload/${type}`, formData)
       alert('Berhasil mengunggah foto profil!')
       if (res.data.foto_profile) {
         updateUser({ foto_profile: res.data.foto_profile })
@@ -79,9 +77,7 @@ export default function ProfileAdmin() {
     }
   }
 
-  const fallbackAvatarUrl = user?.full_name 
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2070&auto=format&fit=crop'
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || 'User')}&background=random`
   
   const avatarUrl = profile?.foto_profile || fallbackAvatarUrl
 

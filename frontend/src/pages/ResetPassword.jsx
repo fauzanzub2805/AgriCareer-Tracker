@@ -50,7 +50,7 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="login-page">
+    <main className="login-page">
       <div className="login-overlay" />
       <div className="login-content">
         <h1 className="login-header-title">
@@ -143,6 +143,6 @@ export default function ResetPassword() {
           </form>
         </div>
       </div>
-    </div>
+    </main>
   )
 }

@@ -8,13 +8,17 @@ export default function DashboardMahasiswa() {
   const { user } = useAuth()
 
   const [lowonganList, setLowonganList] = useState([])
+  const [totalLowongan, setTotalLowongan] = useState(0)
   const [lamaranList, setLamaranList] = useState([])
   const [pengumumanList, setPengumumanList] = useState([])
   const [profile, setProfile] = useState(null)
   const [currentTime, setCurrentTime] = useState(new Date())
 
   useEffect(() => {
-    api.get('/lowongan/').then(res => setLowonganList(res.data)).catch(err => console.error(err))
+    api.get('/lowongan/stats/summary').then(res => {
+      setTotalLowongan(res.data.total)
+      setLowonganList(res.data.recent)
+    }).catch(err => console.error(err))
     api.get('/lamaran/').then(res => setLamaranList(res.data)).catch(err => console.error(err))
     api.get('/pengumuman/').then(res => setPengumumanList(res.data)).catch(err => console.error(err))
     api.get('/profile/me').then(res => setProfile(res.data)).catch(err => console.error(err))
@@ -29,9 +33,7 @@ export default function DashboardMahasiswa() {
 
 
 
-  const fallbackAvatarUrl = profile?.full_name
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : `https://ui-avatars.com/api/?name=Admin&background=random`
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
 
   const avatarUrl = profile?.foto_profile || user?.foto_profile || fallbackAvatarUrl
 
@@ -166,7 +168,7 @@ export default function DashboardMahasiswa() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg">
             <p className="text-xs sm:text-sm text-gray-400 mb-2">Lowongan Tersedia</p>
-            <p className="text-3xl font-bold text-yellow-400">{lowonganList.length}</p>
+            <p className="text-3xl font-bold text-yellow-400">{totalLowongan}</p>
           </div>
           <div className="bg-[#0f1626] rounded-xl py-6 px-4 text-center border border-gray-800 shadow-lg">
             <p className="text-xs sm:text-sm text-gray-400 mb-2">Lowongan Diajukan</p>

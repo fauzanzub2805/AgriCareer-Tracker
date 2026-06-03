@@ -7,10 +7,8 @@ export default function ProfileMenu({ user, onLogout }) {
   const dropdownRef = useRef(null)
   const navigate = useNavigate()
 
-  const fallbackAvatarUrl = user?.full_name 
-    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=random`
-    : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=2070&auto=format&fit=crop'
-  
+  const fallbackAvatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || 'User')}&background=random`
+
   // Di navigasi (ProfileMenu), kita hanya menggunakan avatar huruf (fallback)
   const avatarUrl = fallbackAvatarUrl
 
@@ -27,7 +25,7 @@ export default function ProfileMenu({ user, onLogout }) {
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Avatar Button */}
-      <div 
+      <div
         className="w-9 h-9 rounded-full bg-gray-600 overflow-hidden border border-gray-500 cursor-pointer transition hover:border-yellow-400"
         onClick={() => setIsOpen(!isOpen)}
         title="Menu Profil"
@@ -43,7 +41,7 @@ export default function ProfileMenu({ user, onLogout }) {
             <p className="text-xs text-gray-400 truncate">@{user?.username}</p>
           </div>
           {user?.role && (
-            <button 
+            <button
               onClick={() => {
                 setIsOpen(false)
                 navigate(`/${user.role}/profile`)
@@ -54,7 +52,7 @@ export default function ProfileMenu({ user, onLogout }) {
               Pengaturan Profil
             </button>
           )}
-          <button 
+          <button
             onClick={() => {
               setIsOpen(false)
               onLogout()

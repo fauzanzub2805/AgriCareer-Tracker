@@ -85,7 +85,10 @@ class UserDosenUpdate(BaseModel):
 
 class PesanCreate(BaseModel):
     receiver_username: str
-    pesan: str
+    pesan: str = ""
+    attachment_url: Optional[str] = None
+    attachment_type: Optional[str] = None
+    attachment_name: Optional[str] = None
 
 
 class ForgotPasswordRequest(BaseModel):

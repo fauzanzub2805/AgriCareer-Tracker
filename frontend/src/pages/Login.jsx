@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import './Login.css'
 
@@ -10,16 +10,26 @@ const ROLE_REDIRECT = {
 }
 
 export default function Login() {
-  const { login, loading } = useAuth()
+  const { login, loading, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const from = location.state?.from?.pathname
+
+  // Redirect to dashboard if already logged in
+  if (user && user.role) {
+    const role = String(user.role).toLowerCase()
+    let destination = from || ROLE_REDIRECT[role] || '/'
+    if (destination === '/login' || destination === '/') {
+      destination = ROLE_REDIRECT[role] || '/mahasiswa/dashboard' // fallback to prevent loop
+    }
+    return <Navigate to={destination} replace />
+  }
 
   const [form, setForm] = useState({ username: '', password: '' })
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
-
-  const from = location.state?.from?.pathname
 
   function handleChange(e) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))
@@ -39,7 +49,8 @@ export default function Login() {
     }
     const result = await login(form.username.trim(), form.password, rememberMe)
     if (result.success) {
-      const destination = from || ROLE_REDIRECT[result.role] || '/'
+      const role = String(result.role).toLowerCase()
+      const destination = from || ROLE_REDIRECT[role] || '/'
       navigate(destination, { replace: true })
     } else {
       setError(result.message)
@@ -47,7 +58,7 @@ export default function Login() {
   }
 
   return (
-    <div className="login-page">
+    <main className="login-page">
       <div className="login-overlay" />
       <div className="login-content">
         <h1 className="login-header-title">
@@ -171,6 +182,6 @@ export default function Login() {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   )
 }
